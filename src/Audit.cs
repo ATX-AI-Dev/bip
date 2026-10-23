@@ -233,9 +233,13 @@ namespace ClaudeNotch
         }
 
         // Outils inconnus (MCP surtout) : noms des champs et valeurs courtes seulement. Un texte
-        // long ou sur plusieurs lignes (contenu d'une note, corps d'un e-mail) devient sa taille :
-        // le journal dit ce que l'agent a fait, sans garder les donnees elles-memes.
+        // long ou sur plusieurs lignes, ou tout champ de contenu meme court (note, e-mail, message,
+        // requete SQL), devient sa taille : le journal dit ce que l'agent a fait, sans les donnees.
         const int SHORT_VALUE = 120;
+
+        static readonly HashSet<string> Payload = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "content", "contents", "body", "text", "message", "messages", "query", "sql", "prompt", "data", "payload",
+              "html", "markdown", "comment", "note", "value", "input", "code", "script", "snippet" };
 
         static Dictionary<string, object> Outline(Dictionary<string, object> input)
         {
@@ -244,7 +248,8 @@ namespace ClaudeNotch
             {
                 var v = kv.Value;
                 var s = v as string;
-                if (s != null) o[kv.Key] = s.Length <= SHORT_VALUE && s.IndexOf('\n') < 0 ? s : "[" + s.Length + " caractères]";
+                if (s != null) o[kv.Key] = s.Length <= SHORT_VALUE && s.IndexOfAny(new[] { '\n', '\r' }) < 0 && !Payload.Contains(kv.Key)
+                                           ? s : "[" + s.Length + " caractères]";
                 else if (v is Dictionary<string, object>) o[kv.Key] = "{…}";
                 else if (v is object[]) o[kv.Key] = "[" + ((object[])v).Length + " éléments]";
                 else o[kv.Key] = v;
@@ -270,15 +275,16 @@ namespace ClaudeNotch
             Tuple.Create(new Regex(@"(://[^:@/\s]+:)[^@\s/]+(@)"), "$1[masqué]$2"),
             // curl -u utilisateur:motdepasse
             P(@"(\s-u\s+[^:\s]+:)\S+"),
-            // mysql -pMotDePasse (colle a l'option ; "-p" seul demande le mot de passe, rien a masquer)
-            P(@"(?i)(\b(?:mysql|mariadb|mysqldump|mysqladmin)\b[^|;&\r\n]*?\s-p)(?=[^\s-])\S+"),
-            // sshpass -p motdepasse ; docker login -p, az login -p...
-            P(@"(?i)(\bsshpass\s+-p\s*)\S+"),
-            P(@"(?i)(\blogin\b[^|;&\r\n]*?\s-p[= ]\s*)(""[^""]*""|'[^']*'|\S+)"),
+            // mysql -pMotDePasse (colle a l'option ; "-p" seul demande le mot de passe, rien a masquer).
+            // -p minuscule seulement : -P3306 est le port.
+            P(@"(\b(?i:mysql|mariadb|mysqldump|mysqladmin)\b[^|;&\r\n]*?\s-p)(?=[^\s-])(""[^""]*""|'[^']*'|\S+)"),
+            // sshpass -p motdepasse ; docker login -p, az login -p... (outils nommes : "git log login -p f" reste intact)
+            P(@"(?i)(\bsshpass\s+-p\s*)(""[^""]*""|'[^']*'|\S+)"),
+            P(@"(?i)(\b(?:docker|podman|nerdctl|buildah|skopeo|oras|helm|az|vault)\b[^|;&\r\n]*?\blogin\b[^|;&\r\n]*?\s-p[= ]\s*)(""[^""]*""|'[^']*'|\S+)"),
             // Cle privee PEM : tout le corps, jusqu'a sa ligne de fin (ou la fin du texte)
             Tuple.Create(new Regex(@"(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z0-9 ]*PRIVATE KEY-----|$)"), "$1[masqué]$2"),
             // Webhooks : l'adresse elle-meme est le secret
-            P(@"(?i)(hooks\.slack\.com/(?:services|workflows)/)[^\s""']+"),
+            P(@"(?i)(hooks\.slack\.com/(?:services|workflows|triggers)/)[^\s""']+"),
             P(@"(?i)(discord(?:app)?\.com/api/webhooks/)[^\s""']+"),
             // NOM=valeur, NOM: valeur (y compris DB_PASSWORD, GITHUB_TOKEN, AccountKey=...)
             P(@"(?i)((?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|access[_-]?token|client[_-]?secret|accountkey|sharedaccesskey|subscription[_-]?key)[""']?\s*[=:]\s*)(""[^""]*""|'[^']*'|[^\s;&""']+)"),
@@ -529,11 +535,14 @@ namespace ClaudeNotch
         // toute commande qui commence par la cle : "Bash(terraform:*)" autoriserait aussi
         // "terraform destroy". D'ou des lanceurs de tests et des sous-commandes de lecture,
         // de compilation ou de verification, jamais un programme entier a tout faire.
+        // Ecartees apres relecture : git log / diff / show (--output ecrit n'importe quel fichier,
+        // --ext-diff lance un programme), eslint (--fix, -o), docker compose up / build (conteneurs,
+        // volumes de l'hote).
         static readonly HashSet<string> SafeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "pytest", "jest", "vitest", "mocha", "tsc", "mypy", "eslint", "phpunit", "rspec", "tox", "nox",
+            { "pytest", "jest", "vitest", "mocha", "tsc", "mypy", "phpunit", "rspec", "tox", "nox",
               "npm test", "npm ls", "npm outdated", "pnpm test", "pnpm ls", "yarn test", "bun test",
-              "git status", "git log", "git diff", "git show", "git blame",
-              "docker ps", "docker images", "docker logs", "docker compose up", "docker compose ps", "docker compose logs", "docker compose build",
+              "git status", "git blame",
+              "docker ps", "docker images", "docker logs", "docker compose ps", "docker compose logs",
               "dotnet build", "dotnet test", "cargo build", "cargo test", "cargo check", "cargo clippy", "go build", "go test", "go vet",
               "kubectl get", "kubectl describe", "kubectl logs", "make test", "make build", "make lint", "make check",
               "gradle test", "gradle build", "mvn test", "mvn compile", "mvn verify", "terraform plan", "terraform validate" };
@@ -541,7 +550,8 @@ namespace ClaudeNotch
         // "npm run test:unit", "uv run pytest" : un lanceur suivi d'un script de test, de lint ou de build.
         static readonly HashSet<string> Runners = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             { "npm run", "pnpm run", "yarn run", "bun run", "uv run", "poetry run" };
-        static readonly Regex SafeScript = new Regex(@"(?i)^(test|tests|lint|build|typecheck|type-check|check)([:._-][\w.:-]*)?$");
+        // Suffixes fermes : "build:deploy" ou "check-and-deploy" ne passent pas.
+        static readonly Regex SafeScript = new Regex(@"(?i)^(test|tests|lint|build|typecheck|type-check|check)(:(unit|e2e|integration|all|ci|coverage|watch|dev|types))?$");
 
         static bool SafeKey(string key)
         {

@@ -25,12 +25,19 @@ namespace ClaudeNotch
 
         // bip run "npm run build && npm test" : sous PowerShell, une commande composee doit etre
         // entre guillemets, et cmd.exe prendrait alors le tout pour un seul nom de programme. Une
-        // commande entierement entre guillemets, sans autre guillemet, est donc deballee.
-        public static string UnwrapCommand(string command)
+        // commande entierement entre guillemets, sans autre guillemet, est donc deballee, sauf si
+        // c'est le chemin d'un programme existant ("C:\Program Files\app.exe") : deballe, cmd.exe
+        // le couperait au premier espace.
+        public static string UnwrapCommand(string command, Func<string, bool> isFile)
         {
             var c = (command ?? "").Trim();
             if (c.Length >= 2 && c[0] == '"' && c.IndexOf('"', 1) == c.Length - 1)
-                return c.Substring(1, c.Length - 2).Trim();
+            {
+                var inner = c.Substring(1, c.Length - 2).Trim();
+                bool file = false;
+                try { file = isFile != null && isFile(inner); } catch { }
+                if (!file) return inner;
+            }
             return c;
         }
     }

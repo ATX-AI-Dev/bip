@@ -479,6 +479,10 @@ namespace ClaudeNotch
                 fade.Completed += (s, e) =>
                 {
                     _bips.Children.Remove(gone);
+                    // Revenu pendant le fondu (une attente l'a fait sortir puis rentrer) : un nouveau
+                    // Bip l'a remplace, on ne retire que celui qui s'est efface.
+                    Bip cur;
+                    if (!_rowBips.TryGetValue(key, out cur) || cur != gone) return;
                     _rowBips.Remove(key);
                     _leaving.Remove(key);
                     if (_form == Form.Collapsed) { _colW = CollapsedWidth(); Resize(_colW, COL_H, 250); }
@@ -1087,6 +1091,7 @@ namespace ClaudeNotch
         readonly Border _menuBtn;
         FrameworkElement _settingsEl;
         string _reportError;   // dernier echec du rapport d'audit, montre sous son lien
+        bool _reportBusy;      // rapport en cours de generation
 
         void ToggleSettings()
         {
@@ -1138,12 +1143,19 @@ namespace ClaudeNotch
             p.Children.Add(Section("Traçabilité"));
             p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () =>
             {
-                _reportError = null;
+                // Un seul rapport a la fois : deux generations ecriraient le meme fichier.
+                if (_reportBusy) return;
+                _reportBusy = true;
+                if (_reportError != null) { _reportError = null; Redraw(); }
                 System.Threading.Tasks.Task.Run(() =>
                 {
                     // Echec : le message remplace la precision sous le lien, au lieu de n'aller qu'au notch.log.
                     var err = Report.Open(Audit.KeepDays);
-                    if (err != null) Dispatcher.BeginInvoke((Action)(() => { _reportError = "Rapport impossible : " + err; Redraw(); }));
+                    Dispatcher.BeginInvoke((Action)(() =>
+                    {
+                        _reportBusy = false;
+                        if (err != null) { _reportError = "Rapport impossible : " + err; Redraw(); }
+                    }));
                 });
             }));
 
@@ -1219,7 +1231,8 @@ namespace ClaudeNotch
             var t = new TextBlock { Text = label, FontSize = 12.5, Foreground = mono ? Code : Ink, TextTrimming = TextTrimming.CharacterEllipsis };
             if (mono) t.FontFamily = Mono;
             text.Children.Add(t);
-            if (hint != null) text.Children.Add(new TextBlock { Text = hint, FontSize = 11, Foreground = Muted });
+            // Peut porter un message d'erreur : coupe a la largeur du panneau.
+            if (hint != null) text.Children.Add(new TextBlock { Text = hint, FontSize = 11, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = hint });
             g.Children.Add(text);
             var mark = new TextBlock { Text = sign, FontSize = 12, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 2, 0) };
             Grid.SetColumn(mark, 1);

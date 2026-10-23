@@ -26,7 +26,7 @@ static class BipCli
             Console.WriteLine("Bip v" + ClaudeNotch.AppVersion.Text);
             return 0;
         }
-        string command = first == "run" ? ClaudeNotch.Logic.UnwrapCommand(RawAfterRun()) : "";
+        string command = first == "run" ? ClaudeNotch.Logic.UnwrapCommand(RawAfterRun(), File.Exists) : "";
         if (command.Length == 0)
         {
             Console.WriteLine("Bip v" + ClaudeNotch.AppVersion.Text + " — suivre une commande longue dans l'encoche");

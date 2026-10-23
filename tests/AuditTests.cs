@@ -85,7 +85,7 @@ static class AuditTests
         finally { Clean(root); }
 
         Console.WriteLine("Regroupement et reprise");
-        Check("docker compose up -> docker compose up", k("docker compose up") == "docker compose up");
+        Check("docker compose ps -> docker compose ps", k("docker compose ps") == "docker compose ps");
         Check("docker compose run -> aucune", k("docker compose run web sh") == null);
         root = Path.Combine(Path.GetTempPath(), "bip-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -187,6 +187,11 @@ static class AuditTests
                                   "find . -name x", "sed -i s/a/b/ f", "vercel ls", "git branch", "git stash list", "git tag v1", "npm run deploy",
                                   "docker run alpine", "kubectl delete pod x", "Get-ChildItem" })
             Check(c + " -> aucune", k(c) == null);
+        // Relecture Gemini : ecriture de fichiers (--output, --fix), conteneurs, scripts au suffixe libre.
+        foreach (var c in new[] { "git diff --output=x", "git log -p", "git show HEAD", "eslint src", "docker compose up -d", "docker compose build",
+                                  "npm run build:deploy", "npm run check-and-deploy", "npm run build_destroy", "npm run test:publish" })
+            Check(c + " -> aucune", k(c) == null);
+        Check("npm run test:e2e -> npm run test:e2e", k("npm run test:e2e") == "npm run test:e2e");
         Check("terraform plan -> terraform plan", k("terraform plan -out x") == "terraform plan");
         Check("kubectl get pods -> kubectl get", k("kubectl get pods") == "kubectl get");
         Check("npm run test:unit -> npm run test:unit", k("npm run test:unit") == "npm run test:unit");
@@ -201,6 +206,11 @@ static class AuditTests
         Masked("echo -----BEGIN RSA PRIVATE KEY-----MIIEpAIBAAKCAQEA\nabc\n-----END RSA PRIVATE KEY-----", "MIIEpAIBAAKCAQEA");
         Masked("curl https://hooks.slack.com/services/T000/B000/XXXXSECRETXXXX", "XXXXSECRETXXXX");
         Masked("curl https://discord.com/api/webhooks/123/TOKENSECRETabc", "TOKENSECRETabc");
+        Masked("sshpass -p \"mon mot de passe\" ssh h", "mot de passe");
+        Masked("mysql -u root -p\"pass word\" db", "word");
+        Masked("curl https://hooks.slack.com/triggers/T0/123/abcSECRETdef", "abcSECRETdef");
+        Check("mysql -P3306 (port) intact", Audit.Mask("mysql -h db -P3306 -u root") == "mysql -h db -P3306 -u root");
+        Check("git log login -p intact", Audit.Mask("git log login -p src/App.cs") == "git log login -p src/App.cs");
         Check("mysql -p seul (invite) intact", Audit.Mask("mysql -u root -p db") == "mysql -u root -p db");
         Check("mkdir -p intact", Audit.Mask("mkdir -p src/a") == "mkdir -p src/a");
 
@@ -214,6 +224,10 @@ static class AuditTests
         Check("contenu multiligne remplace par sa taille", !mcp.Contains("confidentielle") && mcp.Contains("[30 caractères]"));
         Check("texte long remplace par sa taille", !mcp.Contains("aaaa") && mcp.Contains("[500 caractères]"));
         Check("booleen, tableau, objet resumes", mcp.Contains("true") && mcp.Contains("[2 éléments]") && mcp.Contains("{…}"));
+        var sql = Audit.Summarize("mcp__postgres__query", new Dictionary<string, object> { { "query", "SELECT ssn FROM users" }, { "db", "prod" } });
+        Check("champ de contenu court remplace aussi", !sql.Contains("ssn") && sql.Contains("prod"));
+        var cr = Audit.Summarize("mcp__x__y", new Dictionary<string, object> { { "titre", "a\rb" } });
+        Check("retour chariot seul traite comme multiligne", !cr.Contains("a\\rb"));
 
         Console.WriteLine("Rapport robuste (R1)");
         Check("dernier dossier", Audit.LastSegment("D:\\Projets\\Bip\\") == "Bip" && Audit.LastSegment("/home/a/b") == "b" && Audit.LastSegment("D:") == "D:");
@@ -241,10 +255,14 @@ static class AuditTests
         Check("5 sessions ou moins : inchange", pick == "s1,s2,s3,s4,s5");
 
         Console.WriteLine("bip run entre guillemets (F2)");
-        Check("guillemets autour de tout retires", Logic.UnwrapCommand("\"npm run build && npm test\"") == "npm run build && npm test");
-        Check("chemin entre guillemets garde", Logic.UnwrapCommand("\"C:\\Program Files\\x.exe\" arg") == "\"C:\\Program Files\\x.exe\" arg");
-        Check("plusieurs groupes de guillemets gardes", Logic.UnwrapCommand("\"a\" \"b\"") == "\"a\" \"b\"");
-        Check("sans guillemets inchange", Logic.UnwrapCommand(" npm test ") == "npm test");
+        Func<string, bool> none = f => false;
+        Check("guillemets autour de tout retires", Logic.UnwrapCommand("\"npm run build && npm test\"", none) == "npm run build && npm test");
+        Check("chemin entre guillemets garde", Logic.UnwrapCommand("\"C:\\Program Files\\x.exe\" arg", none) == "\"C:\\Program Files\\x.exe\" arg");
+        Check("plusieurs groupes de guillemets gardes", Logic.UnwrapCommand("\"a\" \"b\"", none) == "\"a\" \"b\"");
+        Check("sans guillemets inchange", Logic.UnwrapCommand(" npm test ", none) == "npm test");
+        // Relecture Gemini : un programme seul dont le chemin a des espaces garde ses guillemets.
+        Check("programme existant seul garde ses guillemets",
+              Logic.UnwrapCommand("\"C:\\Program Files\\app.exe\"", f => f == "C:\\Program Files\\app.exe") == "\"C:\\Program Files\\app.exe\"");
 
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;

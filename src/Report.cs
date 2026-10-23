@@ -66,7 +66,7 @@ namespace ClaudeNotch
         // Genere et ouvre le rapport ; renvoie null, ou le message d'erreur a montrer.
         public static string Open(int days)
         {
-            try { Process.Start(Generate(days)); return null; }
+            try { using (Process.Start(Generate(days))) { } return null; }
             catch (Exception ex) { Program.Log("rapport d'audit : " + ex); return ex.Message; }
         }
 
