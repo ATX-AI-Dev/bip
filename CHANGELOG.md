@@ -2,6 +2,26 @@
 
 Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert de notes à la release GitHub correspondante.
 
+## [Non publié]
+
+Correctifs issus de l'audit du 23/10/2026. · *Fixes from the 2026-10-23 audit.*
+
+### Sécurité
+
+- **Règles suggérées sur liste blanche** : seules les commandes connues (lanceurs de tests, sous-commandes de lecture, de compilation ou de vérification) deviennent une règle, réduite à leur sous-commande (`Bash(terraform plan:*)`). Avant, toute CLI d'un mot hors liste noire donnait une règle entière : 5 `terraform plan` proposaient `Bash(terraform:*)`, qui autorise aussi `terraform destroy` (de même pour `aws`, `az`, `gh`, `psql`, `find`, `sed`, `git branch`…).
+- **Masquage des secrets** étendu : `mysql -p<mot de passe>`, `sshpass -p`, `docker login -p` / `az login -p`, clés privées PEM, webhooks Slack et Discord.
+- **Outils MCP** : le journal d'audit ne garde plus leur entrée complète, seulement les noms des champs et les valeurs courtes ; un texte long ou sur plusieurs lignes (contenu d'une note, corps d'un e-mail) est remplacé par sa taille.
+
+### Corrections
+
+- Le rapport d'audit ne plante plus sur une ligne dont le dossier contient un caractère de contrôle, et un échec s'affiche sous « Journal d'audit » dans les réglages au lieu de n'aller qu'au `notch.log`.
+- Encoche repliée : une session qui attend ta réponse n'est plus cachée dans « +N » ; elle prend la place de la dernière session qui n'attend pas, sans changer l'ordre de lancement.
+- `bip run "commande && autre"` : une commande entièrement entre guillemets (obligatoire sous PowerShell pour `&&`, `|`, `;`) est maintenant exécutée au lieu d'être prise pour un nom de programme.
+
+### Tests
+
+- 44 tests ajoutés (96 au total) : liste blanche des règles, nouveaux masquages, résumé des entrées MCP, dossier avec caractère de contrôle, choix des Bip de l'encoche repliée, `bip run` entre guillemets.
+
 ## [0.3.0] - 2026-10-14
 
 Bip montre ce qui se passe dans une session : ses sous-agents, son nom, ce qu'elle a fait. · *Bip now shows what happens inside a session: its sub-agents, its name, what it did.*

@@ -18,7 +18,7 @@ set "WPF=%FW%\WPF"
   /r:System.dll /r:System.Core.dll /r:System.Xaml.dll ^
   /r:"%WPF%\WindowsBase.dll" /r:"%WPF%\PresentationCore.dll" /r:"%WPF%\PresentationFramework.dll" ^
   "%~dp0src\App.cs" "%~dp0src\Json.cs" "%~dp0src\Model.cs" "%~dp0src\NotchWindow.cs" "%~dp0src\Bip.cs" "%~dp0src\Version.cs" ^
-  "%~dp0src\Audit.cs" "%~dp0src\Rules.cs" "%~dp0src\Report.cs" "%~dp0src\Agents.cs"
+  "%~dp0src\Audit.cs" "%~dp0src\Rules.cs" "%~dp0src\Report.cs" "%~dp0src\Agents.cs" "%~dp0src\Logic.cs"
 if errorlevel 1 (
   echo.
   echo Compilation de ClaudeNotch echouee.
@@ -51,8 +51,8 @@ if not defined PLACED (
 
 rem bip.exe : la commande "bip run", en console pour partager le terminal.
 "%CSC%" /nologo /target:exe /optimize+ /warn:1 ^
-  /out:"%~dp0bip.exe" /r:System.dll ^
-  "%~dp0src\BipCli.cs" "%~dp0src\Version.cs"
+  /out:"%~dp0bip.exe" /r:System.dll /r:System.Core.dll ^
+  "%~dp0src\BipCli.cs" "%~dp0src\Version.cs" "%~dp0src\Logic.cs"
 if errorlevel 1 (
   echo.
   echo Compilation de bip echouee.

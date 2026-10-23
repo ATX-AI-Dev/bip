@@ -63,10 +63,11 @@ namespace ClaudeNotch
             return path;
         }
 
-        public static void Open(int days)
+        // Genere et ouvre le rapport ; renvoie null, ou le message d'erreur a montrer.
+        public static string Open(int days)
         {
-            try { Process.Start(Generate(days)); }
-            catch (Exception ex) { Program.Log("rapport d'audit : " + ex.Message); }
+            try { Process.Start(Generate(days)); return null; }
+            catch (Exception ex) { Program.Log("rapport d'audit : " + ex); return ex.Message; }
         }
 
         // Titre du chat Claude de chaque session : son transcript porte le nom de la session.

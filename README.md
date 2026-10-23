@@ -169,8 +169,10 @@ auto) et le résultat.
 Après **5 autorisations de la même commande dans un projet** (`npm test`, `pytest`…), Bip
 propose d'en faire une règle Claude Code, en affichant la règle exacte : **Ce projet** (écrite
 dans `.claude/settings.local.json`, non versionné), **Partout**, ou **Non, ne plus proposer**.
-Jamais de suggestion pour une commande composée, risquée (suppression, `git push`, réseau,
-interpréteur…) ou trop large. Les règles créées se retirent d'un clic depuis les réglages (☰), et chaque
+Seules les commandes d'une liste blanche sont proposées (lanceurs de tests, sous-commandes de
+lecture, de compilation ou de vérification : `npm test`, `git status`, `terraform plan`…), et
+jamais une commande composée ou risquée : pas de `Bash(terraform:*)`, qui autoriserait aussi
+`terraform destroy`. Les règles créées se retirent d'un clic depuis les réglages (☰), et chaque
 ajout ou retrait est inscrit au journal d'audit.
 
 <p align="center"><img src="docs/screenshots/regle.png" width="560" alt="Carte de permission avec une règle suggérée : Ce projet, Partout, Non, ne plus proposer"></p>
@@ -448,8 +450,10 @@ who allowed it (you in Bip, you in Claude, a rule, auto mode) and the outcome.
 
 After **5 approvals of the same command in a project** (`npm test`, `pytest`…), Bip offers to
 turn it into a Claude Code rule and shows the exact rule: **this project** (written to the
-unversioned `.claude/settings.local.json`), **everywhere**, or **never suggest again**. Never for
-compound, risky (deletion, `git push`, network, interpreters…) or overly broad commands. Rules
+unversioned `.claude/settings.local.json`), **everywhere**, or **never suggest again**. Only allowlisted
+commands are suggested (test runners, read, build or check subcommands: `npm test`, `git status`,
+`terraform plan`…), never compound or risky ones: no `Bash(terraform:*)`, which would also allow
+`terraform destroy`. Rules
 created by Bip can be removed in one click from the settings (☰), and every change is written to the
 audit log.
 

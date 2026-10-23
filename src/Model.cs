@@ -85,7 +85,7 @@ namespace ClaudeNotch
         {
             if (string.IsNullOrEmpty(dir)) return "session";
             var d = dir.TrimEnd('\\', '/');
-            var n = Path.GetFileName(d);
+            var n = Audit.LastSegment(d);
             return string.IsNullOrEmpty(n) ? d : n;
         }
     }

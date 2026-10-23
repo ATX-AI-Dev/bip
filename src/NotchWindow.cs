@@ -459,9 +459,10 @@ namespace ClaudeNotch
         // animations continuent, et un changement d'etat se joue (saut, affaissement...).
         void SyncRow()
         {
-            var shown = _views.Take(MAX_BIPS).ToList();
+            // Une session qui attend n'est jamais cachee dans "+N" (voir Logic.Collapsed).
+            var shown = Logic.Collapsed(_views, MAX_BIPS, v => v.State == St.Waiting, v => v.Since);
             int extra = _views.Count - shown.Count;
-            bool extraWaiting = _views.Skip(MAX_BIPS).Any(v => v.State == St.Waiting);
+            bool extraWaiting = _views.Except(shown).Any(v => v.State == St.Waiting);
             string sig = string.Join(";", shown.Select(v => v.S.Id + ":" + v.State)) + "|" + extra + extraWaiting;
             if (sig == _rowSig) return;
             _rowSig = sig;
@@ -1085,6 +1086,7 @@ namespace ClaudeNotch
 
         readonly Border _menuBtn;
         FrameworkElement _settingsEl;
+        string _reportError;   // dernier echec du rapport d'audit, montre sous son lien
 
         void ToggleSettings()
         {
@@ -1134,9 +1136,15 @@ namespace ClaudeNotch
             p.Children.Add(Toggle("Faire clignoter Claude", "quand une demande attend depuis 5 min", _cfg.Flash, () => { _cfg.Flash = !_cfg.Flash; _cfg.Save(); }));
 
             p.Children.Add(Section("Traçabilité"));
-            p.Children.Add(Link("Journal d'audit", "ce que les agents ont fait, et qui l'a autorisé", "↗", () =>
+            p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () =>
             {
-                System.Threading.Tasks.Task.Run(() => Report.Open(Audit.KeepDays));
+                _reportError = null;
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    // Echec : le message remplace la precision sous le lien, au lieu de n'aller qu'au notch.log.
+                    var err = Report.Open(Audit.KeepDays);
+                    if (err != null) Dispatcher.BeginInvoke((Action)(() => { _reportError = "Rapport impossible : " + err; Redraw(); }));
+                });
             }));
 
             var rules = Rules.Created();

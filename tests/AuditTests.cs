@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ClaudeNotch;
 
 static class AuditTests
@@ -179,6 +180,71 @@ static class AuditTests
             Check("transcript absent : pas de titre", Agents.Title(tr + ".absent") == null);
         }
         finally { try { File.Delete(tr); } catch { } }
+
+        Console.WriteLine("Regles suggerees : liste blanche (S1)");
+        // CLI a un mot : une regle "Bash(x:*)" couvrirait aussi ses commandes destructrices.
+        foreach (var c in new[] { "terraform destroy", "aws s3 ls", "az group list", "gh pr list", "gcloud config list", "psql -c x", "sqlcmd -Q x",
+                                  "find . -name x", "sed -i s/a/b/ f", "vercel ls", "git branch", "git stash list", "git tag v1", "npm run deploy",
+                                  "docker run alpine", "kubectl delete pod x", "Get-ChildItem" })
+            Check(c + " -> aucune", k(c) == null);
+        Check("terraform plan -> terraform plan", k("terraform plan -out x") == "terraform plan");
+        Check("kubectl get pods -> kubectl get", k("kubectl get pods") == "kubectl get");
+        Check("npm run test:unit -> npm run test:unit", k("npm run test:unit") == "npm run test:unit");
+        Check("uv run pytest -> uv run pytest", k("uv run pytest -q") == "uv run pytest");
+        Check("cargo test -> cargo test", k("cargo test --all") == "cargo test");
+
+        Console.WriteLine("Masquage : formats ajoutes (S2)");
+        Masked("mysql -u root -pS3cr3tP4ss db", "S3cr3tP4ss");
+        Masked("sshpass -p hunter2pw ssh h", "hunter2pw");
+        Masked("az login --service-principal -u id -p Pa55w0rd! --tenant t", "Pa55w0rd!");
+        Masked("docker login -p MyDockerPass reg.io", "MyDockerPass");
+        Masked("echo -----BEGIN RSA PRIVATE KEY-----MIIEpAIBAAKCAQEA\nabc\n-----END RSA PRIVATE KEY-----", "MIIEpAIBAAKCAQEA");
+        Masked("curl https://hooks.slack.com/services/T000/B000/XXXXSECRETXXXX", "XXXXSECRETXXXX");
+        Masked("curl https://discord.com/api/webhooks/123/TOKENSECRETabc", "TOKENSECRETabc");
+        Check("mysql -p seul (invite) intact", Audit.Mask("mysql -u root -p db") == "mysql -u root -p db");
+        Check("mkdir -p intact", Audit.Mask("mkdir -p src/a") == "mkdir -p src/a");
+
+        Console.WriteLine("Entrees des outils MCP (S3)");
+        var mcp = Audit.Summarize("mcp__vault__write_note", new Dictionary<string, object>
+        {
+            { "rel_path", "projets/x.md" }, { "content", "Ligne 1 confidentielle\nLigne 2" }, { "overwrite", true },
+            { "body", new string('a', 500) }, { "tags", new object[] { "a", "b" } }, { "meta", new Dictionary<string, object> { { "k", "v" } } }
+        });
+        Check("chemin court garde", mcp.Contains("projets/x.md"));
+        Check("contenu multiligne remplace par sa taille", !mcp.Contains("confidentielle") && mcp.Contains("[30 caractères]"));
+        Check("texte long remplace par sa taille", !mcp.Contains("aaaa") && mcp.Contains("[500 caractères]"));
+        Check("booleen, tableau, objet resumes", mcp.Contains("true") && mcp.Contains("[2 éléments]") && mcp.Contains("{…}"));
+
+        Console.WriteLine("Rapport robuste (R1)");
+        Check("dernier dossier", Audit.LastSegment("D:\\Projets\\Bip\\") == "Bip" && Audit.LastSegment("/home/a/b") == "b" && Audit.LastSegment("D:") == "D:");
+        root = Path.Combine(Path.GetTempPath(), "bip-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            // Dossier avec une tabulation : Path.GetFileName levait une exception, et tout le rapport echouait.
+            Audit.Write(root, "outil", new Dictionary<string, object> { { "sess", "s" }, { "tool", "Bash" }, { "obj", "echo x" }, { "dir", "D:\\a\tb" } });
+            string project = null;
+            try { project = Audit.Rows(root, 1)[0].Project; } catch { }
+            Check("dossier avec caractere de controle lisible", project == "a\tb");
+        }
+        finally { Clean(root); }
+
+        Console.WriteLine("Encoche repliee : attente jamais cachee (F1)");
+        // (nom, attend, debut de l'attente) dans l'ordre de lancement
+        var sess = new[] { Tuple.Create("s1", false, 0), Tuple.Create("s2", true, 5), Tuple.Create("s3", false, 0), Tuple.Create("s4", false, 0),
+                           Tuple.Create("s5", false, 0), Tuple.Create("s6", false, 0), Tuple.Create("s7", true, 2), Tuple.Create("s8", true, 1) };
+        Func<Tuple<string, bool, int>, bool> waits = s => s.Item2;
+        Func<Tuple<string, bool, int>, DateTime> since = s => new DateTime(2026, 1, 1).AddMinutes(s.Item3);
+        var pick = string.Join(",", Logic.Collapsed(sess, 5, waits, since).Select(s => s.Item1));
+        Check("attentes hors des 5 promues, ordre garde : " + pick, pick == "s1,s2,s3,s7,s8");
+        pick = string.Join(",", Logic.Collapsed(sess.Take(5).ToList(), 5, waits, since).Select(s => s.Item1));
+        Check("5 sessions ou moins : inchange", pick == "s1,s2,s3,s4,s5");
+
+        Console.WriteLine("bip run entre guillemets (F2)");
+        Check("guillemets autour de tout retires", Logic.UnwrapCommand("\"npm run build && npm test\"") == "npm run build && npm test");
+        Check("chemin entre guillemets garde", Logic.UnwrapCommand("\"C:\\Program Files\\x.exe\" arg") == "\"C:\\Program Files\\x.exe\" arg");
+        Check("plusieurs groupes de guillemets gardes", Logic.UnwrapCommand("\"a\" \"b\"") == "\"a\" \"b\"");
+        Check("sans guillemets inchange", Logic.UnwrapCommand(" npm test ") == "npm test");
 
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
