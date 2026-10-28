@@ -90,7 +90,7 @@ static class BipCli
     }
 
     // bip info : envoie une info a l'encoche par le canal Bip Connect (lecture seule cote encoche).
-    // Code de retour : 0 acceptee, 1 refusee, 2 usage, 3 encoche absente.
+    // Code de retour : 0 acceptee, 1 refusee, 2 usage, 3 encoche absente ou qui ne repond pas en 3 s.
     static int Info(string[] args)
     {
         string source = "manuel", title = null, text = "";
@@ -118,7 +118,10 @@ static class BipCli
                 var bytes = new UTF8Encoding(false).GetBytes(msg + "\n");
                 pipe.Write(bytes, 0, bytes.Length);
                 pipe.Flush();
-                var reply = new System.IO.StreamReader(pipe, Encoding.UTF8).ReadLine() ?? "";
+                // Une encoche figee ne doit pas bloquer l'appelant (le collecteur de Logres, un script) : 3 s au plus.
+                var read = System.Threading.Tasks.Task.Run(() => new System.IO.StreamReader(pipe, Encoding.UTF8).ReadLine());
+                if (!read.Wait(3000)) { Console.Error.WriteLine("bip info : l'encoche ne répond pas"); return 3; }
+                var reply = read.Result ?? "";
                 Console.WriteLine(reply);
                 return reply == "ok" ? 0 : 1;
             }
