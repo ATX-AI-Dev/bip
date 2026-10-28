@@ -735,8 +735,9 @@ namespace ClaudeNotch
                     string refused = msg == null ? error : !Allow() ? "trop de messages (" + GLOBAL_PER_MINUTE + " par minute au total)" : _onInfo(msg);
                     Reply(pipe, refused == null ? "ok" : "refusé : " + refused);
                 }
-                catch (IOException) { }
-                catch (AggregateException) { }
+                // Toute erreur (encoche qui s'arrete, exception de l'interface) reste sur ce fil : une
+                // exception non rattrapee sur un fil d'arriere-plan arreterait toute l'encoche.
+                catch (Exception ex) { if (!(ex is IOException) && !(ex is AggregateException)) _log("bip connect : " + ex.Message); }
             }
         }
 

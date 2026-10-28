@@ -305,7 +305,9 @@ static class AuditTests
         Func<string, Notice> I = key => new Notice { Priority = 3, Key = key, Source = "connect:agenda", Created = t0, Expires = t0.AddHours(1) };
         at.Add(I("i1")); at.Add(I("i2"));
         Check("plafond par source : une info", at.Next(t0, false, null).Key == "i1" && at.Next(t0.AddSeconds(30), false, null) == null);
-        Check("la suivante apres l'intervalle", at.Next(t0 + Attention.SourceInterval, false, null).Key == "i2");
+        Check("la suivante est abandonnee, pas differee", at.Count == 0 && at.Next(t0 + Attention.SourceInterval, false, null) == null);
+        at.Add(I("i3"));
+        Check("une nouvelle info apres l'intervalle s'annonce", at.Next(t0 + Attention.SourceInterval, false, null).Key == "i3");
         at.Add(N(0, "x")); at.Add(N(2, "y")); at.Drop(n => n.Priority <= 1);
         Check("panneau ouvert : demandes et commandes retirees de la file", at.Count == 1);
 

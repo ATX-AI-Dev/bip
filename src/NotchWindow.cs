@@ -325,7 +325,12 @@ namespace ClaudeNotch
             if (_hwnd == IntPtr.Zero || _hiddenFullScreen || !_shape.IsVisible) return;
             Pump();
             Native.POINT pt;
-            if (!Native.GetCursorPos(out pt)) return;
+            if (!Native.GetCursorPos(out pt))
+            {
+                // Curseur illisible (poste verrouille) : une entrouverture echue se replie quand meme.
+                if (_form == Form.Peek && DateTime.Now > _peekUntil) GoTo(RestForm());
+                return;
+            }
             var p = new Point(pt.X / _scale - Left, pt.Y / _scale - Top);
 
             var origin = _shape.TranslatePoint(new Point(0, 0), this);
@@ -634,8 +639,8 @@ namespace ClaudeNotch
         {
             if (_form == Form.Expanded) return;
             _leaveSince = null;
-            // Le panneau montre deja les demandes et les commandes : leurs annonces n'ont plus lieu d'etre.
-            _attention.Drop(n => n.Priority <= 1);
+            // Le panneau montre deja demandes, commandes et infos : leurs annonces n'ont plus lieu d'etre.
+            _attention.Drop(n => true);
             GoTo(Form.Expanded);
         }
 
@@ -764,12 +769,16 @@ namespace ClaudeNotch
             switch (r)
             {
                 case Microsoft.Win32.SessionSwitchReason.SessionLock:
+                case Microsoft.Win32.SessionSwitchReason.SessionLogoff:
                 case Microsoft.Win32.SessionSwitchReason.ConsoleDisconnect:
                 case Microsoft.Win32.SessionSwitchReason.RemoteDisconnect:
                     _away = true;
-                    // Personne ne verra l'encoche : les demandes repartent tout de suite vers Claude.
+                    // Personne ne verra l'encoche : les demandes repartent tout de suite vers Claude,
+                    // et une entrouverture en cours se replie.
                     foreach (var p in _pending.Where(x => !x.Done).ToList()) HandBack(p, "poste verrouillé ou déconnecté");
+                    if (_form == Form.Peek) GoTo(RestForm());
                     break;
+                case Microsoft.Win32.SessionSwitchReason.SessionLogon:
                 case Microsoft.Win32.SessionSwitchReason.SessionUnlock:
                 case Microsoft.Win32.SessionSwitchReason.ConsoleConnect:
                 case Microsoft.Win32.SessionSwitchReason.RemoteConnect:
@@ -1801,6 +1810,8 @@ namespace ClaudeNotch
 
         void Answer(Pending p, string json)
         {
+            // Deja rendue (delai, poste verrouille) ou abandonnee par l'agent : un clic tardif ne compte pas.
+            if (p.Done) { _pending.Remove(p); _cards.Remove(p); _panelSig = ""; Refresh(); return; }
             if (!string.IsNullOrEmpty(json)) Journal.Add("reponse", p.SessionId, Session.NameOf(p.Cwd));
             _pending.Remove(p);
             _cards.Remove(p);

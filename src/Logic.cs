@@ -205,9 +205,10 @@ namespace ClaudeNotch
         // affichee (null si rien) ; seule une annonce strictement plus prioritaire l'interrompt.
         public Notice Next(DateTime now, bool quiet, int? current)
         {
-            _queue.RemoveAll(n => !Alive(n, now));
+            // Une info dont la source vient de s'annoncer est abandonnee, pas differee : elle reste
+            // lisible dans le panneau, sans entrouverture surprise quelques minutes plus tard.
+            _queue.RemoveAll(n => !Alive(n, now) || (n.Priority >= 2 && n.Source != null && Throttled(n.Source, now)));
             var next = _queue.Where(n => !quiet || n.EvenQuiet)
-                             .Where(n => n.Priority < 2 || n.Source == null || !Throttled(n.Source, now))
                              .OrderBy(n => n.Priority).ThenBy(n => n.Created).FirstOrDefault();
             if (next == null || (current != null && next.Priority >= current.Value)) return null;
             _queue.Remove(next);
