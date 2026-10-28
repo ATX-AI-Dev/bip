@@ -26,9 +26,10 @@ namespace ClaudeNotch
             {
                 { "t", r.T.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) },
                 { "s", r.Rule ? "bip" : r.Sess ?? "" }, { "a", r.Agent ?? "" }, { "sp", r.Spawned ?? "" },
-                { "k", Kind(r) }, { "tool", r.Tool ?? "" },
-                { "o", Short(r.Obj, r.Dir) }, { "of", r.Obj ?? "" },
-                { "p", r.Project }, { "dir", r.Dir ?? "" },
+                // Caracteres invisibles ou d'inversion (U+202E...) rendus visibles, comme dans l'encoche.
+                { "k", Kind(r) }, { "tool", Logic.Visible(r.Tool ?? "") },
+                { "o", Logic.Visible(Short(r.Obj, r.Dir)) }, { "of", Logic.Visible(r.Obj ?? "") },
+                { "p", Logic.Visible(r.Project) }, { "dir", Logic.Visible(r.Dir ?? "") },
                 { "dec", r.Decision ?? "" }, { "via", r.Via ?? "" }, { "res", r.Outcome ?? "" },
                 { "who", (r.User ?? "") + " @ " + (r.Host ?? "") }, { "h", r.Hidden }
             }).ToList();
@@ -39,7 +40,7 @@ namespace ClaudeNotch
                 var dir = g.Select(r => r.Dir).FirstOrDefault(d => !string.IsNullOrEmpty(d));
                 string title;
                 titles.TryGetValue(g.Key, out title);
-                sessions[g.Key] = new Dictionary<string, object> { { "t", title ?? "" }, { "p", dir == null ? "—" : Session.NameOf(dir) } };
+                sessions[g.Key] = new Dictionary<string, object> { { "t", Logic.Visible(title ?? "") }, { "p", dir == null ? "—" : Logic.Visible(Session.NameOf(dir)) } };
             }
             sessions["bip"] = new Dictionary<string, object> { { "t", "Règles créées par Bip" }, { "p", "" } };
 
@@ -97,15 +98,15 @@ namespace ClaudeNotch
             return titles;
         }
 
-        // Transcript note dans state\<id>.state ("etat|dossier|pid|claude|transcript"), ou null.
+        // Transcript de Claude Code note dans state\<id>.state (format commun), ou null.
         static string TranscriptOf(string id)
         {
             try
             {
                 var f = Path.Combine(Program.StateDir, id + ".state");
                 if (!File.Exists(f)) return null;
-                var p = File.ReadAllText(f).Split('|');
-                return p.Length > 4 && p[3] == "claude" && p[4].Trim().Length > 0 ? p[4].Trim() : null;
+                var rec = StateRecord.Parse(File.ReadAllText(f));
+                return rec != null && rec.Harness == "claude" && !string.IsNullOrEmpty(rec.Transcript) ? rec.Transcript : null;
             }
             catch { return null; }
         }

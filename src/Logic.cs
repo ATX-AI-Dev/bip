@@ -2,7 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ClaudeNotch
 {
@@ -40,5 +43,212 @@ namespace ClaudeNotch
             }
             return c;
         }
+
+        // Rend visibles les caracteres invisibles ou de controle (U+202E et consorts) : le texte
+        // affiche doit etre celui qui sera execute. Saut de ligne et tabulation gardes.
+        public static string Visible(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s ?? "";
+            var sb = new StringBuilder(s.Length);
+            foreach (char c in s)
+            {
+                var cat = char.GetUnicodeCategory(c);
+                if ((cat == UnicodeCategory.Format || cat == UnicodeCategory.Control) && c != '\n' && c != '\t')
+                    sb.Append("[U+").Append(((int)c).ToString("X4")).Append(']');
+                else sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        // Les "max" premieres lignes d'un texte, et le nombre de lignes au-dela (0 si tout tient).
+        public static string[] Head(string text, int max, out int more)
+        {
+            var lines = (text ?? "").Replace("\r", "").Split('\n');
+            more = Math.Max(0, lines.Length - max);
+            return lines.Take(max).ToArray();
+        }
+    }
+
+    // ------------------------------------------------------------ fichier d'etat commun
+
+    // Une session suivie par l'encoche, quel que soit l'outil : state\<id>.state, en JSON.
+    //   {"v":2,"harness":"claude","state":"busy","dir":"...","pid":123,"proc":"claude","transcript":"..."}
+    //   {"v":2,"harness":"run","state":"ready","dir":"...","pid":456,"label":"npm test","code":"0","start":"..."}
+    // "proc" : nom du processus qui prouve que la session vit (claude, codex...) ; absent pour bip run,
+    // dont la preuve est le pid lui-meme et son heure de lancement. L'ancien format (champs separes par
+    // "|") est encore lu : etat|dossier|pid|claude|transcript, ou etat|dossier|pid|run|commande|code|debut.
+    class StateRecord
+    {
+        public string Harness = "claude", State, Dir = "", Proc, Transcript, Label, Code;
+        public int Pid;
+        public DateTime? Start;
+
+        public bool IsRun { get { return Harness == "run"; } }
+
+        static readonly Regex HarnessName = new Regex("^[a-z][a-z0-9-]{0,23}$");
+
+        public static StateRecord Parse(string raw)
+        {
+            raw = (raw ?? "").Trim();
+            if (raw.Length == 0) return null;
+            var r = new StateRecord();
+            if (raw[0] == '{')
+            {
+                var d = Json.Obj(Json.Parse(raw));
+                if (d == null) return null;
+                var h = Json.Str(d, "harness") ?? "claude";
+                r.Harness = HarnessName.IsMatch(h) ? h : "claude";
+                r.State = Json.Str(d, "state");
+                r.Dir = Json.Str(d, "dir") ?? "";
+                int pid; int.TryParse(Json.Str(d, "pid"), out pid); r.Pid = pid;
+                var proc = Json.Str(d, "proc");
+                r.Proc = proc != null && HarnessName.IsMatch(proc) ? proc : null;
+                r.Transcript = Json.Str(d, "transcript");
+                r.Label = Json.Str(d, "label");
+                r.Code = Json.Str(d, "code");
+                r.Start = Date(Json.Str(d, "start"));
+                return r;
+            }
+            var p = raw.Split(new[] { '|' }, 7);
+            r.State = p[0].Trim();
+            r.Dir = p.Length > 1 ? p[1].Trim() : "";
+            if (p.Length > 2) int.TryParse(p[2].Trim(), out r.Pid);
+            bool run = p.Length > 3 && p[3].Trim() == "run";
+            r.Harness = run ? "run" : "claude";
+            r.Proc = run ? null : "claude";
+            if (p.Length > 4) { if (run) r.Label = p[4].Trim(); else r.Transcript = p[4].Trim(); }
+            if (p.Length > 5) r.Code = p[5].Trim();
+            if (p.Length > 6) r.Start = Date(p[6].Trim());
+            return r;
+        }
+
+        public string Write()
+        {
+            var d = new Dictionary<string, object> { { "v", 2 }, { "harness", Harness }, { "state", State }, { "dir", Dir ?? "" }, { "pid", Pid } };
+            if (Proc != null) d["proc"] = Proc;
+            if (!string.IsNullOrEmpty(Transcript)) d["transcript"] = Transcript;
+            if (Label != null) d["label"] = Label;
+            if (Code != null) d["code"] = Code;
+            if (Start != null) d["start"] = Start.Value.ToString("o", CultureInfo.InvariantCulture);
+            return Json.Write(d);
+        }
+
+        static DateTime? Date(string s)
+        {
+            DateTime t;
+            if (string.IsNullOrEmpty(s) || !DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out t)) return null;
+            return t.ToLocalTime();
+        }
+    }
+
+    // ------------------------------------------------------------ budget d'attention
+
+    // Ce que l'encoche annonce en s'entrouvrant, par ordre de priorite :
+    //   0  une demande (permission, question) : toujours en tete, interrompt le reste
+    //   1  une commande suivie qui finit (bip run)
+    //   2  un resume (fin d'appel) ou une info importante de Bip Connect
+    //   3  une info ordinaire de Bip Connect
+    // Une seule annonce a la fois. Une annonce plus prioritaire interrompt celle en cours ; les autres
+    // attendent leur tour et expirent. Au-dela de la priorite 1, une meme source ne s'annonce pas plus
+    // d'une fois par intervalle : l'encoche ne devient pas un centre de notifications.
+    class Notice
+    {
+        public int Priority;
+        public string Key;           // meme cle : la nouvelle annonce remplace l'ancienne
+        public string Source;        // plafond par source (priorite 2 et plus)
+        public DateTime Created, Expires;
+        public bool EvenQuiet;       // montree meme en "ne pas deranger" (l'annonce de la sourdine elle-meme)
+        public Func<bool> Valid;     // la demande attend toujours, par exemple
+        public object Payload;
+    }
+
+    class Attention
+    {
+        public static readonly TimeSpan SourceInterval = TimeSpan.FromMinutes(2);
+
+        readonly List<Notice> _queue = new List<Notice>();
+        readonly Dictionary<string, DateTime> _lastBySource = new Dictionary<string, DateTime>();
+
+        public int Count { get { return _queue.Count; } }
+
+        public void Add(Notice n)
+        {
+            _queue.RemoveAll(x => x.Key != null && x.Key == n.Key);
+            _queue.Add(n);
+        }
+
+        public void Remove(string key) { _queue.RemoveAll(x => x.Key == key); }
+
+        public void Drop(Predicate<Notice> which) { _queue.RemoveAll(which); }
+
+        bool Alive(Notice n, DateTime now)
+        {
+            if (now >= n.Expires) return false;
+            try { return n.Valid == null || n.Valid(); } catch { return false; }
+        }
+
+        // Prochaine annonce a montrer maintenant, ou null. "current" : la priorite de l'annonce
+        // affichee (null si rien) ; seule une annonce strictement plus prioritaire l'interrompt.
+        public Notice Next(DateTime now, bool quiet, int? current)
+        {
+            _queue.RemoveAll(n => !Alive(n, now));
+            var next = _queue.Where(n => !quiet || n.EvenQuiet)
+                             .Where(n => n.Priority < 2 || n.Source == null || !Throttled(n.Source, now))
+                             .OrderBy(n => n.Priority).ThenBy(n => n.Created).FirstOrDefault();
+            if (next == null || (current != null && next.Priority >= current.Value)) return null;
+            _queue.Remove(next);
+            if (next.Priority >= 2 && next.Source != null) _lastBySource[next.Source] = now;
+            return next;
+        }
+
+        bool Throttled(string source, DateTime now)
+        {
+            DateTime last;
+            return _lastBySource.TryGetValue(source, out last) && now - last < SourceInterval;
+        }
+    }
+
+    // ------------------------------------------------------------ messages de Bip Connect
+
+    // Bip Connect (et "bip info") n'envoie a l'encoche que de quoi afficher : jamais une reponse a
+    // une demande, jamais un changement d'etat de session. Une ligne JSON par connexion :
+    //   {"source":"agenda","title":"Point equipe dans 10 min","text":"Teams","priority":2,"ttl":600}
+    class InfoMessage
+    {
+        public const int MaxBytes = 4096;
+        public string Source, Title, Text, Key;
+        public int Priority;
+        public TimeSpan Ttl;
+
+        static readonly Regex SourceName = new Regex("^[a-z0-9][a-z0-9-]{0,23}$");
+
+        // Message valide (textes rendus visibles et bornes), ou null avec la raison du refus.
+        public static InfoMessage Parse(string json, out string error)
+        {
+            error = null;
+            Dictionary<string, object> d = null;
+            try { d = Json.Obj(Json.Parse(json ?? "")); } catch { }
+            if (d == null) { error = "JSON illisible"; return null; }
+            var source = Json.Str(d, "source");
+            if (source == null || !SourceName.IsMatch(source)) { error = "source invalide (a-z, 0-9, tiret, 24 caractères au plus)"; return null; }
+            var title = Json.Str(d, "title");
+            if (string.IsNullOrWhiteSpace(title)) { error = "titre manquant"; return null; }
+            int prio = 3, ttl = 300, v;
+            if (int.TryParse(Json.Str(d, "priority"), out v)) prio = v;
+            if (int.TryParse(Json.Str(d, "ttl"), out v)) ttl = v;
+            var key = Json.Str(d, "key");
+            return new InfoMessage
+            {
+                Source = source,
+                Title = Clip(Logic.Visible(title.Replace("\n", " ").Trim()), 80),
+                Text = Clip(Logic.Visible((Json.Str(d, "text") ?? "").Replace("\n", " ").Trim()), 280),
+                // Jamais au niveau d'une demande ni d'une commande : 2 ou 3 seulement.
+                Priority = prio <= 2 ? 2 : 3,
+                Ttl = TimeSpan.FromSeconds(Math.Max(10, Math.Min(3600, ttl))),
+                Key = source + ":" + (key != null ? Clip(key, 64) : title.Trim())
+            };
+        }
+
+        static string Clip(string s, int max) { return s.Length > max ? s.Substring(0, max - 1) + "…" : s; }
     }
 }

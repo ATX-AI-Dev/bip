@@ -223,9 +223,17 @@ namespace ClaudeNotch
             Audit.Purge(Program.Root, Audit.KeepDays);
 
             new PipeServer(
-                p => Dispatcher.BeginInvoke((Action)(() => { _pending.Add(p); Refresh(); Peek(p); })),
+                p => Dispatcher.BeginInvoke((Action)(() =>
+                {
+                    // Poste verrouille ou session deconnectee : personne ne voit l'encoche, Claude demande lui-meme.
+                    if (_away) { ThreadPool.QueueUserWorkItem(_ => p.Reply("")); return; }
+                    _pending.Add(p); Refresh(); Peek(p);
+                })),
                 p => Dispatcher.BeginInvoke((Action)(() => { _pending.Remove(p); Refresh(); })),
                 Program.Log).Start();
+
+            // Infos de Bip Connect : decidees sur le fil de l'interface (file, plafond, affichage).
+            new InfoServer(m => (string)Dispatcher.Invoke((Func<string>)(() => AcceptInfo(m))), Program.Log).Start();
 
             Every(500, Refresh);
             _track = Every(100, Track);   // 50 ms deplie ou entrouvert (voir GoTo)
@@ -233,6 +241,7 @@ namespace ClaudeNotch
             Every(2000, CheckCall);
 
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s, e) => Dispatcher.BeginInvoke((Action)Place);
+            Microsoft.Win32.SystemEvents.SessionSwitch += (s, e) => Dispatcher.BeginInvoke((Action)(() => OnSessionSwitch(e.Reason)));
 
             Refresh();
         }
@@ -314,6 +323,7 @@ namespace ClaudeNotch
         void Track()
         {
             if (_hwnd == IntPtr.Zero || _hiddenFullScreen || !_shape.IsVisible) return;
+            Pump();
             Native.POINT pt;
             if (!Native.GetCursorPos(out pt)) return;
             var p = new Point(pt.X / _scale - Left, pt.Y / _scale - Top);
@@ -347,6 +357,7 @@ namespace ClaudeNotch
             var loaded = Sessions.Load(Program.StateDir);
             if (loaded != null) { _sessions = loaded; JournalTransitions(loaded); }
             _pending.RemoveAll(p => p.Done);
+            _infos.RemoveAll(i => DateTime.Now >= i.Until);
 
             var views = new List<View>();
             _dismissed.RemoveWhere(id => !_sessions.Any(x => x.Id == id));
@@ -623,6 +634,8 @@ namespace ClaudeNotch
         {
             if (_form == Form.Expanded) return;
             _leaveSince = null;
+            // Le panneau montre deja les demandes et les commandes : leurs annonces n'ont plus lieu d'etre.
+            _attention.Drop(n => n.Priority <= 1);
             GoTo(Form.Expanded);
         }
 
@@ -742,9 +755,47 @@ namespace ClaudeNotch
                 { RepeatBehavior = RepeatBehavior.Forever }, 30));
         }
 
+        // ------------------------------------------------------------ rendre la main a Claude
+
+        bool _away;   // poste verrouille ou session deconnectee
+
+        void OnSessionSwitch(Microsoft.Win32.SessionSwitchReason r)
+        {
+            switch (r)
+            {
+                case Microsoft.Win32.SessionSwitchReason.SessionLock:
+                case Microsoft.Win32.SessionSwitchReason.ConsoleDisconnect:
+                case Microsoft.Win32.SessionSwitchReason.RemoteDisconnect:
+                    _away = true;
+                    // Personne ne verra l'encoche : les demandes repartent tout de suite vers Claude.
+                    foreach (var p in _pending.Where(x => !x.Done).ToList()) HandBack(p, "poste verrouillé ou déconnecté");
+                    break;
+                case Microsoft.Win32.SessionSwitchReason.SessionUnlock:
+                case Microsoft.Win32.SessionSwitchReason.ConsoleConnect:
+                case Microsoft.Win32.SessionSwitchReason.RemoteConnect:
+                    _away = false;
+                    break;
+            }
+        }
+
+        // Sans reponse dans l'encoche au bout du delai choisi, la demande repart vers Claude.
+        void HandBackExpired()
+        {
+            var limit = TimeSpan.FromMinutes(_cfg.ReplyMinutes);
+            foreach (var p in _pending.Where(x => !x.Done && DateTime.Now - x.Since >= limit).ToList())
+                HandBack(p, "sans réponse depuis " + _cfg.ReplyMinutes + " min");
+        }
+
+        void HandBack(Pending p, string why)
+        {
+            Program.Log("demande rendue à Claude (" + why + ") : " + p.ToolName);
+            Answer(p, "");
+        }
+
         // Respiration geree par Bip ; au-dela de 5 min d'attente, la fenetre Claude clignote.
         void Escalate()
         {
+            HandBackExpired();
             var longest = _views.Where(v => v.State == St.Waiting).Select(v => DateTime.Now - v.Since).DefaultIfEmpty(TimeSpan.Zero).Max();
             UpdateGlow();   // fin du "ne pas deranger" : l'eclat reprend s'il le faut
             UpdateMoon();
@@ -777,10 +828,119 @@ namespace ClaudeNotch
             GoTo(Form.Peek);
         }
 
-        // Une nouvelle demande : l'encoche s'agrandit 4 s pour dire qui attend, puis se replie.
+        // ------------------------------------------------------------ infos de Bip Connect
+
+        // Une info recue par le canal en lecture seule : affichee, jamais actionnable.
+        class InfoItem { public InfoMessage Msg; public DateTime At, Until; }
+
+        readonly List<InfoItem> _infos = new List<InfoItem>();                 // 20 au plus, la plus recente d'abord
+        readonly Dictionary<string, Queue<DateTime>> _infoRate = new Dictionary<string, Queue<DateTime>>();
+        const int INFO_MAX = 20, INFO_PER_SOURCE = 10;
+        static readonly TimeSpan INFO_WINDOW = TimeSpan.FromMinutes(10);
+
+        // Null si l'info est acceptee, sinon la raison du refus (renvoyee a l'expediteur).
+        string AcceptInfo(InfoMessage m)
+        {
+            var now = DateTime.Now;
+            Queue<DateTime> q;
+            if (!_infoRate.TryGetValue(m.Source, out q)) _infoRate[m.Source] = q = new Queue<DateTime>();
+            while (q.Count > 0 && now - q.Peek() > INFO_WINDOW) q.Dequeue();
+            if (q.Count >= INFO_PER_SOURCE) return "trop de messages de cette source (" + INFO_PER_SOURCE + " par 10 min)";
+            q.Enqueue(now);
+
+            _infos.RemoveAll(x => x.Msg.Key == m.Key);
+            var item = new InfoItem { Msg = m, At = now, Until = now + m.Ttl };
+            _infos.Insert(0, item);
+            if (_infos.Count > INFO_MAX) _infos.RemoveRange(INFO_MAX, _infos.Count - INFO_MAX);
+            // Annonce plafonnee par source (Attention) ; plus d'objet si l'info a ete retiree ou a expire.
+            Announce(m.Priority, "info:" + m.Key, "connect:" + m.Source, m.Ttl, false,
+                     () => _infos.Contains(item) && DateTime.Now < item.Until, () => ShowInfoPeek(m));
+            if (_form == Form.Expanded) RenderPanel(false);
+            return null;
+        }
+
+        // Entrouverture d'une info : pas de Bip (il represente les agents), un "i" et la source en clair.
+        void ShowInfoPeek(InfoMessage m)
+        {
+            if (_form == Form.Expanded) return;
+            const double W = 400;
+            var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 18, 0) };
+            row.Children.Add(new TextBlock { Text = "ⓘ", FontSize = 24, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+            text.Children.Add(new TextBlock { Text = m.Title, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Ink,
+                                              TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = W - 80 });
+            text.Children.Add(new TextBlock { Text = m.Source + (m.Text.Length > 0 ? " · " + m.Text : ""), FontSize = 12, Foreground = Muted,
+                                              TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = W - 80 });
+            row.Children.Add(text);
+            ShowPeek(row, W, PEEK_H, PEEK_HOLD, null);
+        }
+
+        // Section "Infos" du panneau deplie : une ligne par info, une croix pour la retirer.
+        FrameworkElement InfoSection()
+        {
+            var p = new StackPanel { Margin = new Thickness(0, 6, 0, 0), Background = Brushes.Transparent };
+            p.MouseLeftButtonUp += (s, e) => e.Handled = true;   // encoche vide : pas d'ouverture de Claude ici
+            p.Children.Add(Section("Infos"));
+            foreach (var it in _infos)
+            {
+                var item = it;
+                var g = new Grid { Margin = new Thickness(4, 2, 0, 2) };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                g.Children.Add(new TextBlock { Text = "ⓘ", FontSize = 14, Foreground = Muted, Margin = new Thickness(4, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+                var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                text.Children.Add(new TextBlock { Text = item.Msg.Title, FontSize = 12.5, Foreground = Ink, TextTrimming = TextTrimming.CharacterEllipsis });
+                text.Children.Add(new TextBlock { Text = item.Msg.Source + " · " + item.At.ToString("HH:mm") + (item.Msg.Text.Length > 0 ? " · " + item.Msg.Text : ""),
+                                                  FontSize = 11, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = item.Msg.Text });
+                Grid.SetColumn(text, 1);
+                g.Children.Add(text);
+                var x = new TextBlock { Text = "✕", FontSize = 12, Foreground = Muted, Cursor = Cursors.Hand, ToolTip = "Retirer",
+                                        VerticalAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 4, 6, 4), Background = Brushes.Transparent };
+                x.MouseLeftButtonUp += (s, e) => { e.Handled = true; _infos.Remove(item); _attention.Remove("info:" + item.Msg.Key); Redraw(); };
+                Grid.SetColumn(x, 2);
+                g.Children.Add(x);
+                p.Children.Add(g);
+            }
+            return p;
+        }
+
+        // ------------------------------------------------------------ file d'annonces (budget d'attention)
+
+        // Toutes les entrouvertures passent par la file (Attention, Logic.cs) : une a la fois, la plus
+        // prioritaire d'abord ; une demande interrompt une fin de commande, jamais l'inverse.
+        readonly Attention _attention = new Attention();
+        int? _peekPriority;   // priorite de l'annonce affichee
+
+        void Announce(int priority, string key, string source, TimeSpan ttl, bool evenQuiet, Func<bool> valid, Action show)
+        {
+            var now = DateTime.Now;
+            _attention.Add(new Notice { Priority = priority, Key = key, Source = source, Created = now, Expires = now + ttl,
+                                        EvenQuiet = evenQuiet, Valid = valid, Payload = show });
+            Pump();
+        }
+
+        // Appelee a chaque suivi de la souris : montre l'annonce suivante quand il y a lieu.
+        void Pump()
+        {
+            if (_form == Form.Expanded || _hiddenFullScreen || _attention.Count == 0) return;
+            int? current = _form == Form.Peek && DateTime.Now < _peekUntil ? _peekPriority : null;
+            var n = _attention.Next(DateTime.Now, Quiet, current);
+            if (n == null) return;
+            _peekPriority = n.Priority;
+            ((Action)n.Payload)();
+        }
+
+        // Une nouvelle demande : annoncee tant qu'elle attend, avant tout le reste.
         void Peek(Pending p)
         {
-            if (_form == Form.Expanded || p.Done || Quiet) return;
+            Announce(0, "demande:" + p.GetHashCode(), null, TimeSpan.FromHours(6), false, () => !p.Done, () => ShowPendingPeek(p));
+        }
+
+        // L'encoche s'agrandit 4 s pour dire qui attend, puis se replie.
+        void ShowPendingPeek(Pending p)
+        {
+            if (_form == Form.Expanded || p.Done) return;
             var v = _views.FirstOrDefault(x => x.S.Id == p.SessionId);
             string name = v != null ? v.S.ShortName : Session.NameOf(p.Cwd);
 
@@ -806,10 +966,15 @@ namespace ClaudeNotch
             ShowPeek(row, w, PEEK_H, PEEK_HOLD, p);
         }
 
-        // Fin d'une commande longue (bip run) : reussie ou en echec, en 4 s.
+        // Fin d'une commande longue (bip run) : reussie ou en echec, en 4 s, si personne n'attend.
         void PeekRun(Session s)
         {
-            if (_form == Form.Expanded || Quiet) return;
+            Announce(1, "run:" + s.Id, null, TimeSpan.FromSeconds(30), false, null, () => ShowRunPeek(s));
+        }
+
+        void ShowRunPeek(Session s)
+        {
+            if (_form == Form.Expanded) return;
             bool ok = s.State == St.Ready, cut = s.Code == "interrompu";
             const double W = 380;
             var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 18, 0) };
@@ -962,6 +1127,11 @@ namespace ClaudeNotch
         // Micro-ouverture de 2 s, une seule ligne (meme en sourdine : c'est elle qu'on annonce).
         void MicroPeek(string text)
         {
+            Announce(2, "sourdine", null, TimeSpan.FromSeconds(10), true, null, () => ShowMicroPeek(text));
+        }
+
+        void ShowMicroPeek(string text)
+        {
             var t = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Ink,
                                     HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             t.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -969,6 +1139,11 @@ namespace ClaudeNotch
         }
 
         void PeekRecap(string recap)
+        {
+            Announce(2, "fin-appel", null, TimeSpan.FromMinutes(1), false, null, () => ShowRecapPeek(recap));
+        }
+
+        void ShowRecapPeek(string recap)
         {
             const double W = 400;
             var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 18, 0) };
@@ -1028,6 +1203,7 @@ namespace ClaudeNotch
             string sig = string.Join(";", _views.Select(v => v.S.Id + ":" + v.State + ":" + v.S.Display + ":" + v.Pending.Count + ":"
                                                          + string.Join(",", VisibleAgents(v.S).Select(a => a.Tuid + (a.End != null ? "+" : "")))))
                        + "|" + string.Join(",", _pending.Select(p => p.GetHashCode()))
+                       + "|" + string.Join(",", _infos.Select(i => i.Msg.Key + i.At.Ticks))
                        + "|" + (_settingsOpen ? Quiet + ":" + _cfg.AutoDnd + ":" + _cfg.Flash + ":" + Rules.Created().Count : "");
             if (sig == _panelSig && !opening) return;
             // Pendant une saisie, on ne reconstruit rien : le focus serait perdu.
@@ -1046,13 +1222,16 @@ namespace ClaudeNotch
                     _content.Children.Add(card);
                     var since = (TextBlock)card.Tag;
                     var pp = p;
-                    _tickers.Add(() => since.Text = "attend depuis " + Fmt(DateTime.Now - pp.Since));
+                    _tickers.Add(() => since.Text = "attend depuis " + Fmt(DateTime.Now - pp.Since) + " · repart vers Claude dans "
+                                                    + Fmt(pp.Since.AddMinutes(_cfg.ReplyMinutes) - DateTime.Now));
                 }
 
             var rows = _views.Where(v => v.Pending.Count == 0).OrderBy(v => v.State == St.Waiting ? 0 : 1).ThenBy(v => v.S.Order).ToList();
             for (int i = 0; i < rows.Count; i++) _content.Children.Add(Row(rows[i], i > 0));
             if (_views.Count == 0)
                 _content.Children.Add(EmptyPanel());
+            if (_infos.Count > 0)
+                _content.Children.Add(InfoSection());
             if (_settingsOpen)
             {
                 _content.Children.Add(new Rectangle { Height = 1, Fill = Btn2, Margin = new Thickness(0, 10, 0, 8) });
@@ -1139,6 +1318,15 @@ namespace ClaudeNotch
                 if (!_cfg.AutoDnd && _autoDnd) { _autoDnd = false; QuietChanged(); }
             }));
             p.Children.Add(Toggle("Faire clignoter Claude", "quand une demande attend depuis 5 min", _cfg.Flash, () => { _cfg.Flash = !_cfg.Flash; _cfg.Save(); }));
+            // Un clic passe au delai suivant (5, 10, 30, 60 min).
+            p.Children.Add(Link("Rendre la main à Claude après " + _cfg.ReplyMinutes + " min",
+                                "une demande sans réponse ici repart dans la fenêtre Claude ; tout de suite si le poste est verrouillé", "↻", () =>
+            {
+                var c = Config.ReplyChoices;
+                _cfg.ReplyMinutes = c[(Array.IndexOf(c, _cfg.ReplyMinutes) + 1) % c.Length];
+                _cfg.Save();
+                Redraw();
+            }));
 
             p.Children.Add(Section("Traçabilité"));
             p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () =>
@@ -1646,10 +1834,13 @@ namespace ClaudeNotch
                 body.Children.Add(new TextBlock { Text = "Selon Claude : " + Safe(desc), Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
 
             var code = new TextBlock { FontFamily = Mono, FontSize = 12, LineHeight = 18, Foreground = Code, TextWrapping = TextWrapping.Wrap };
-            FillDetails(code, tool, input);
+            int hidden = FillDetails(code, tool, input);
             int nl = code.Inlines.OfType<LineBreak>().Count() + 1;
             if (nl > 12)
                 body.Children.Add(new TextBlock { Text = nl + " lignes : fais défiler pour tout lire avant d'autoriser.", Foreground = WaitRed, FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+            if (hidden > 0)
+                body.Children.Add(new TextBlock { Text = "Contenu trop long : une partie n'est pas affichée ici. Pour tout voir, « Répondre dans Claude ».",
+                                                  Foreground = WaitRed, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
             body.Children.Add(new Border
             {
                 Background = Black, BorderBrush = Btn2, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
@@ -1749,13 +1940,19 @@ namespace ClaudeNotch
             return "Utiliser l'outil « " + tool + " » ?";
         }
 
-        void FillDetails(TextBlock tb, string tool, Dictionary<string, object> input)
+        // Ce qui sera autorise doit etre lisible en entier : chaque bloc est montre jusqu'a CARD_LINES
+        // lignes (la carte defile), et ce qui reste cache est compte et signale en rouge sous le code.
+        const int CARD_LINES = 400, CARD_VALUE = 4000;
+
+        // Remplit le bloc de code ; renvoie le nombre de lignes (ou de valeurs) non affichees.
+        int FillDetails(TextBlock tb, string tool, Dictionary<string, object> input)
         {
             Action<string, Brush> line = (s, b) =>
             {
                 if (tb.Inlines.Count > 0) tb.Inlines.Add(new LineBreak());
                 tb.Inlines.Add(new Run(Safe(s)) { Foreground = b ?? Code });
             };
+            int hidden = 0;
 
             string path = Json.Str(input, "file_path") ?? Json.Str(input, "notebook_path") ?? Json.Str(input, "path");
             switch (tool)
@@ -1763,49 +1960,48 @@ namespace ClaudeNotch
                 case "Bash":
                 case "PowerShell":
                     line(Json.Str(input, "command") ?? "", null);
-                    return;
+                    return 0;
                 case "Edit":
                     line(path ?? "", Muted);
-                    Diff(line, Json.Str(input, "old_string"), Json.Str(input, "new_string"));
-                    return;
+                    Diff(line, Json.Str(input, "old_string"), Json.Str(input, "new_string"), ref hidden);
+                    return hidden;
                 case "MultiEdit":
                     line(path ?? "", Muted);
-                    var edits = Json.Arr(Json.Get(input, "edits")) ?? new object[0];
-                    foreach (var e in edits.Take(3))
-                        Diff(line, Json.Str(Json.Obj(e), "old_string"), Json.Str(Json.Obj(e), "new_string"));
-                    if (edits.Length > 3) line("… " + (edits.Length - 3) + " autres modifications", Muted);
-                    return;
+                    foreach (var e in Json.Arr(Json.Get(input, "edits")) ?? new object[0])
+                        Diff(line, Json.Str(Json.Obj(e), "old_string"), Json.Str(Json.Obj(e), "new_string"), ref hidden);
+                    return hidden;
                 case "Write":
                     line(path ?? "", Muted);
-                    Excerpt(line, Json.Str(input, "content"), "", null, 12);
-                    return;
+                    Excerpt(line, Json.Str(input, "content"), "", null, CARD_LINES, ref hidden);
+                    return hidden;
                 case "WebFetch":
                     line(Json.Str(input, "url") ?? "", null);
-                    return;
+                    return 0;
                 case "WebSearch":
                     line(Json.Str(input, "query") ?? "", null);
-                    return;
+                    return 0;
             }
             foreach (var kv in input)
             {
                 var val = kv.Value as string ?? Json.Write(kv.Value);
-                if (val.Length > 400) val = val.Substring(0, 400) + " …";
+                if (val.Length > CARD_VALUE) { val = val.Substring(0, CARD_VALUE) + " …"; hidden++; }
                 line(kv.Key + " : " + val, null);
             }
+            return hidden;
         }
 
-        static void Diff(Action<string, Brush> line, string oldS, string newS)
+        static void Diff(Action<string, Brush> line, string oldS, string newS, ref int hidden)
         {
-            Excerpt(line, oldS, "- ", DiffDel, 8);
-            Excerpt(line, newS, "+ ", DiffAdd, 8);
+            Excerpt(line, oldS, "- ", DiffDel, CARD_LINES, ref hidden);
+            Excerpt(line, newS, "+ ", DiffAdd, CARD_LINES, ref hidden);
         }
 
-        static void Excerpt(Action<string, Brush> line, string text, string prefix, Brush b, int max)
+        static void Excerpt(Action<string, Brush> line, string text, string prefix, Brush b, int max, ref int hidden)
         {
             if (string.IsNullOrEmpty(text)) return;
-            var lines = text.Replace("\r", "").Split('\n');
-            foreach (var l in lines.Take(max)) line(prefix + l, b);
-            if (lines.Length > max) line(prefix + "… (" + (lines.Length - max) + " lignes de plus)", Muted);
+            int more;
+            foreach (var l in Logic.Head(text, max, out more)) line(prefix + l, b);
+            if (more > 0) { line(prefix + "… (" + more + " lignes non affichées)", WaitRed); hidden += more; }
         }
 
         // -------- AskUserQuestion
@@ -1985,18 +2181,7 @@ namespace ClaudeNotch
 
         // Rend visibles les caracteres invisibles ou de controle (U+202E et consorts) :
         // le texte affiche doit etre celui qui sera execute.
-        static string Safe(string s)
-        {
-            if (string.IsNullOrEmpty(s)) return s ?? "";
-            var sb = new StringBuilder(s.Length);
-            foreach (char c in s)
-            {
-                var cat = char.GetUnicodeCategory(c);
-                if ((cat == UnicodeCategory.Format || cat == UnicodeCategory.Control) && c != '\n' && c != '\t')
-                    sb.Append("[U+").Append(((int)c).ToString("X4")).Append(']');
-                else sb.Append(c);
-            }
-            return sb.ToString();
-        }
+        // Partage avec le rapport d'audit (Logic.Visible).
+        static string Safe(string s) { return Logic.Visible(s); }
     }
 }

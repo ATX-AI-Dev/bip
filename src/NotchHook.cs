@@ -46,19 +46,53 @@ static class NotchHook
 
     static readonly string Root = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
-    // Le processus qui lance le hook est le claude.exe de la session : son PID est
-    // la preuve de vie que l'encoche verifie.
-    static int ParentPid()
+    static int ParentOf(Process p)
     {
         try
         {
             var pbi = new PROCESS_BASIC_INFORMATION();
             int len;
-            if (NtQueryInformationProcess(Process.GetCurrentProcess().Handle, 0,
-                                          ref pbi, Marshal.SizeOf(pbi), out len) != 0) return 0;
+            if (NtQueryInformationProcess(p.Handle, 0, ref pbi, Marshal.SizeOf(pbi), out len) != 0) return 0;
             return (int)pbi.InheritedFromUniqueProcessId;
         }
         catch { return 0; }
+    }
+
+    // Le PID qui prouve que la session vit : le processus de l'outil (claude.exe, codex.exe...).
+    // Claude Code lance le hook directement ; un autre outil peut passer par un shell : on remonte
+    // alors quelques parents jusqu'au processus qui porte le nom de l'outil. A defaut, le parent direct.
+    static int SessionPid(string proc)
+    {
+        int first = 0;
+        try
+        {
+            var p = Process.GetCurrentProcess();
+            for (int level = 0; level < 4; level++)
+            {
+                int pid = ParentOf(p);
+                if (pid <= 0) break;
+                if (level == 0) first = pid;
+                try { p = Process.GetProcessById(pid); } catch { break; }
+                if (string.Equals(p.ProcessName, proc, StringComparison.OrdinalIgnoreCase)) return pid;
+            }
+        }
+        catch { }
+        return first;
+    }
+
+    // "--harness codex" : l'outil qui appelle le hook (claude par defaut).
+    static string TakeHarness(ref string[] args)
+    {
+        var list = new List<string>(args);
+        string harness = "claude";
+        int i = list.IndexOf("--harness");
+        if (i >= 0)
+        {
+            if (i + 1 < list.Count) harness = list[i + 1].ToLowerInvariant();
+            list.RemoveRange(i, Math.Min(2, list.Count - i));
+        }
+        args = list.ToArray();
+        return System.Text.RegularExpressions.Regex.IsMatch(harness, "^[a-z][a-z0-9-]{0,23}$") ? harness : "claude";
     }
 
     // Lecture bornee : Claude Code n'impose pas de delai aux hooks async.
@@ -90,6 +124,7 @@ static class NotchHook
         {
             // L'instant de lancement fixe l'ordre des evenements (hooks async).
             DateTime started = Process.GetCurrentProcess().StartTime;
+            string harness = TakeHarness(ref args);
             string mode = args.Length > 0 ? args[0] : "state";
             string input = ReadStdin();
             // JSON illisible : d reste null, les variables d'environnement prennent le relais.
@@ -101,13 +136,10 @@ static class NotchHook
             string dir = Json.Str(d, "cwd");
             if (string.IsNullOrEmpty(dir)) dir = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? "";
 
-            if (string.IsNullOrEmpty(id))
-            {
-                id = dir;
-                foreach (char c in Path.GetInvalidFileNameChars()) id = id.Replace(c, '_');
-                id = id.Replace(' ', '_');
-            }
-            if (string.IsNullOrEmpty(id)) id = "session";
+            if (string.IsNullOrEmpty(id)) id = (dir ?? "").Replace(' ', '_');
+            // L'identifiant devient un nom de fichier dans state\ : jamais de separateur ni de caractere interdit.
+            foreach (char c in Path.GetInvalidFileNameChars()) id = id.Replace(c, '_');
+            if (string.IsNullOrEmpty(id.Trim('.'))) id = "session";
 
             string evt = Json.Str(d, "hook_event_name") ?? "";
             // Racine du projet (les regles "ce projet" y sont ecrites) ; dir peut etre un sous-dossier.
@@ -118,7 +150,7 @@ static class NotchHook
             if (mode == "state")
             {
                 // Etat, sous-agents et audit independants : l'echec de l'un ne prive pas les autres.
-                try { WriteState(id, args.Length > 1 ? args[1] : "ready", dir, started, transcript); } catch { }
+                try { WriteState(id, args.Length > 1 ? args[1] : "ready", dir, started, transcript, harness); } catch { }
                 try { TrackAgentTool(evt, d, id); } catch { }
                 if (evt == "PreToolUse" || evt == "PostToolUse" || evt == "PostToolUseFailure") AuditTool(evt, d, id, dir, proj);
                 return 0;
@@ -154,7 +186,7 @@ static class NotchHook
                 if (mode == "permission") AuditDecision(reply, d, id);
                 // Repondu : la session repart. Sinon Claude pose la question lui-meme et la
                 // session attend l'utilisateur. Horodatage "maintenant" : suit le busy du PreToolUse.
-                WriteState(id, string.IsNullOrEmpty(reply) ? "waiting" : "busy", dir, DateTime.Now, transcript);
+                WriteState(id, string.IsNullOrEmpty(reply) ? "waiting" : "busy", dir, DateTime.Now, transcript, harness);
             }
         }
         catch { /* un hook ne doit jamais faire echouer une session */ }
@@ -279,7 +311,7 @@ static class NotchHook
 
     // ------------------------------------------------------------ etat de la session
 
-    static void WriteState(string id, string state, string dir, DateTime when, string transcript)
+    static void WriteState(string id, string state, string dir, DateTime when, string transcript, string harness)
     {
         string stateDir = Path.Combine(Root, "state");
         Directory.CreateDirectory(stateDir);
@@ -296,11 +328,14 @@ static class NotchHook
         // ponytail: lecture/ecriture non atomiques, fenetre de quelques ms ; verrou de fichier si un jour ca se voit.
         if (File.Exists(file) && File.GetLastWriteTime(file) > when) return;
 
-        // Format : etat|dossier|pid|claude|transcript (le transcript donne le titre de la session).
+        // Format commun (StateRecord, Logic.cs) ; le transcript donne le titre de la session.
         // La date de creation du fichier, conservee par les reecritures, donne l'ordre de
         // lancement des sessions dans l'encoche. Quelques essais : l'encoche lit le fichier, un
         // autre hook peut l'ecrire.
-        string text = state + "|" + dir + "|" + ParentPid() + "|claude|" + transcript;
+        string text = new StateRecord
+        {
+            Harness = harness, State = state, Dir = dir, Proc = harness, Pid = SessionPid(harness), Transcript = transcript
+        }.Write();
         for (int i = 0; ; i++)
         {
             try

@@ -54,6 +54,7 @@ namespace ClaudeNotch
         public DateTime Since;   // entree dans l'etat courant
         public DateTime Order;   // lancement de la session : ordre stable dans l'encoche
         public string Kind = "claude";   // "claude" ou "run" (commande lancee par bip run)
+        public string Harness = "claude";   // outil de la session : claude, codex... ou run
         public string Label;             // run : la commande
         public string Code;              // run termine : code de retour, ou "interrompu"
         public string Title;             // claude : titre du chat (transcript), ou null
@@ -65,10 +66,12 @@ namespace ClaudeNotch
             get
             {
                 if (IsRun) return Name;
+                // Autre outil que Claude Code : son nom en tete ("codex · dossier/").
+                var tool = Harness == "claude" ? "" : Harness + " · ";
                 var folder = NameOf(Dir) + "/";
-                if (string.IsNullOrEmpty(Title)) return folder;
+                if (string.IsNullOrEmpty(Title)) return tool + folder;
                 var t = Title.Length > TITLE_MAX ? Title.Substring(0, TITLE_MAX - 1).TrimEnd() + "…" : Title;
-                return t + " · " + folder;
+                return tool + t + " · " + folder;
             }
         }
         const int TITLE_MAX = 30;
@@ -99,6 +102,10 @@ namespace ClaudeNotch
         public DateTime DndUntil = DateTime.MinValue;   // "ne pas deranger" jusqu'a cette heure
         public bool Dnd { get { return DateTime.Now < DndUntil; } }
         public bool AutoDnd = true;      // sourdine automatique pendant les appels
+        // Une demande sans reponse dans l'encoche repart vers Claude au bout de ce delai : la session
+        // n'attend plus jusqu'au filet d'une heure du hook si l'encoche n'est pas vue.
+        public static readonly int[] ReplyChoices = { 5, 10, 30, 60 };
+        public int ReplyMinutes = 10;
 
         public Config(string path)
         {
@@ -114,6 +121,7 @@ namespace ClaudeNotch
                     if (k == "flash") Flash = v != "0";
                     else if (k == "dnd") { long t; if (long.TryParse(v, out t)) DndUntil = new DateTime(t); }
                     else if (k == "autodnd") AutoDnd = v != "0";
+                    else if (k == "reply") { int m; if (int.TryParse(v, out m) && ReplyChoices.Contains(m)) ReplyMinutes = m; }
                 }
             }
             catch { }
@@ -125,7 +133,8 @@ namespace ClaudeNotch
             {
                 File.WriteAllText(_path, "flash=" + (Flash ? "1" : "0") + Environment.NewLine +
                                          "dnd=" + DndUntil.Ticks + Environment.NewLine +
-                                         "autodnd=" + (AutoDnd ? "1" : "0") + Environment.NewLine);
+                                         "autodnd=" + (AutoDnd ? "1" : "0") + Environment.NewLine +
+                                         "reply=" + ReplyMinutes + Environment.NewLine);
             }
             catch { }
         }
@@ -250,20 +259,17 @@ namespace ClaudeNotch
             {
                 try
                 {
-                    var raw = ReadShared(f);
-                    if (raw.Length == 0) continue;
+                    var rec = StateRecord.Parse(ReadShared(f));
+                    if (rec == null) continue;
 
-                    // etat|dossier|pid, et pour une commande : |run|commande|code|debut
-                    var parts = raw.Split(new[] { '|' }, 7);
-                    var st = States.Parse(parts[0]);
-                    var dir = parts.Length > 1 ? parts[1].Trim() : "";
+                    // Format commun (StateRecord) : claude, codex... ou "run" pour bip run.
+                    var st = States.Parse(rec.State);
+                    var dir = rec.Dir;
                     var since = File.GetLastWriteTime(f);
-                    int pid = 0;
-                    if (parts.Length > 2) int.TryParse(parts[2].Trim(), out pid);
-                    string kind = parts.Length > 3 && parts[3].Trim() == "run" ? "run" : "claude";
-                    DateTime start = DateTime.MinValue;
-                    bool hasStart = parts.Length > 6 && DateTime.TryParse(parts[6].Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out start);
-                    start = hasStart ? start.ToLocalTime() : File.GetCreationTime(f);
+                    int pid = rec.Pid;
+                    string kind = rec.IsRun ? "run" : "claude";
+                    bool hasStart = rec.Start != null;
+                    DateTime start = hasStart ? rec.Start.Value : File.GetCreationTime(f);
 
                     if (kind == "run")
                     {
@@ -276,7 +282,7 @@ namespace ClaudeNotch
                         // Commande effacee de l'encoche : son fichier n'a plus d'usage.
                         if (st == St.Stale) { try { File.Delete(f); } catch { } continue; }
                     }
-                    else if (pid > 0 && !Alive(pid, "claude", DateTime.MinValue)) st = St.Stale;
+                    else if (pid > 0 && !Alive(pid, rec.Proc ?? rec.Harness, DateTime.MinValue)) st = St.Stale;
                     else
                     {
                         var age = DateTime.Now - since;
@@ -285,23 +291,23 @@ namespace ClaudeNotch
                         else if ((st == St.Ready || st == St.Idle) && age > STALE_READY) st = St.Stale;
                     }
 
-                    string label = parts.Length > 4 ? parts[4].Trim() : null;
                     string id = Path.GetFileNameWithoutExtension(f);
-                    bool claude = kind == "claude" && st != St.Stale;
+                    bool live = !rec.IsRun && st != St.Stale;
                     list.Add(new Session
                     {
                         Id = id,
                         Dir = dir,
-                        Name = kind == "run" && !string.IsNullOrEmpty(label) ? label : Session.NameOf(dir),
+                        Name = rec.IsRun && !string.IsNullOrEmpty(rec.Label) ? rec.Label : Session.NameOf(dir),
                         State = st,
                         Since = since,
                         Order = start,
                         Kind = kind,
-                        Label = kind == "run" ? label : null,
-                        Code = parts.Length > 5 ? parts[5].Trim() : null,
-                        // claude : le 5e champ est le transcript (titre du chat)
-                        Title = claude ? Agents.Title(label) : null,
-                        SubAgents = claude ? Agents.Load(stateDir, id) : new List<SubAgent>()
+                        Harness = rec.Harness,
+                        Label = rec.IsRun ? rec.Label : null,
+                        Code = rec.Code,
+                        // Titre du chat : transcript de Claude Code seulement (celui des autres outils n'est pas un format stable).
+                        Title = live && rec.Harness == "claude" ? Agents.Title(rec.Transcript) : null,
+                        SubAgents = live ? Agents.Load(stateDir, id) : new List<SubAgent>()
                     });
                 }
                 catch { }
@@ -635,6 +641,80 @@ namespace ClaudeNotch
                 sb.Append((char)b);
             }
             return null;
+        }
+    }
+
+    // ------------------------------------------------------------ canal Bip Connect (lecture seule)
+
+    // Second pipe, distinct de celui des demandes : Bip Connect (et "bip info") n'y envoie que de
+    // quoi afficher (InfoMessage, Logic.cs). Rien de ce qui arrive ici ne peut repondre a une demande
+    // ni toucher a l'etat d'une session. Une ligne JSON par connexion, une ligne de reponse :
+    // "ok", ou "refusé : <raison>".
+    class InfoServer
+    {
+        public static string Name { get { return "BipConnect-" + WindowsIdentity.GetCurrent().User.Value; } }
+
+        readonly Func<InfoMessage, string> _onInfo;   // null si accepte, sinon la raison du refus
+        readonly Action<string> _log;
+        int _active;                                   // connexions en cours (4 au plus)
+
+        public InfoServer(Func<InfoMessage, string> onInfo, Action<string> log) { _onInfo = onInfo; _log = log; }
+
+        public void Start() { new Thread(AcceptLoop) { IsBackground = true, Name = "bip-connect" }.Start(); }
+
+        void AcceptLoop()
+        {
+            var sec = new PipeSecurity();
+            sec.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User, PipeAccessRights.FullControl, AccessControlType.Allow));
+            while (true)
+            {
+                NamedPipeServerStream pipe = null;
+                try
+                {
+                    pipe = new NamedPipeServerStream(Name, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
+                                                     PipeTransmissionMode.Byte, PipeOptions.None, 0, 0, sec);
+                    pipe.WaitForConnection();
+                    // Un client qui ne finit jamais sa ligne ne bloque qu'un fil ; au-dela de 4, refuse.
+                    if (Interlocked.Increment(ref _active) > 4) { Interlocked.Decrement(ref _active); pipe.Dispose(); continue; }
+                    var conn = pipe;
+                    new Thread(() => { try { Handle(conn); } finally { Interlocked.Decrement(ref _active); } }) { IsBackground = true, Name = "info" }.Start();
+                }
+                catch (Exception ex)
+                {
+                    _log("bip connect : " + ex.Message);
+                    if (pipe != null) pipe.Dispose();
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+
+        void Handle(NamedPipeServerStream pipe)
+        {
+            using (pipe)
+            {
+                try
+                {
+                    var buf = new MemoryStream();
+                    int b;
+                    while ((b = pipe.ReadByte()) >= 0 && b != '\n')
+                    {
+                        if (buf.Length >= InfoMessage.MaxBytes) { Reply(pipe, "refusé : message trop long"); return; }
+                        buf.WriteByte((byte)b);
+                    }
+                    string error;
+                    var msg = InfoMessage.Parse(Encoding.UTF8.GetString(buf.ToArray()), out error);
+                    var refused = msg == null ? error : _onInfo(msg);
+                    Reply(pipe, refused == null ? "ok" : "refusé : " + refused);
+                }
+                catch (IOException) { }
+            }
+        }
+
+        static void Reply(Stream s, string line)
+        {
+            var bytes = Encoding.UTF8.GetBytes(line + "\n");
+            s.Write(bytes, 0, bytes.Length);
+            s.Flush();
         }
     }
 }

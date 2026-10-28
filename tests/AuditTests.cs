@@ -264,6 +264,75 @@ static class AuditTests
         Check("programme existant seul garde ses guillemets",
               Logic.UnwrapCommand("\"C:\\Program Files\\app.exe\"", f => f == "C:\\Program Files\\app.exe") == "\"C:\\Program Files\\app.exe\"");
 
+        Console.WriteLine("Phase 1 : fichier d'etat commun");
+        var legacy = StateRecord.Parse("busy|D:\\Projets\\x|1234|claude|C:\\t.jsonl");
+        Check("ancien format claude lu", legacy.Harness == "claude" && legacy.Proc == "claude" && legacy.Pid == 1234 && legacy.Transcript == "C:\\t.jsonl" && legacy.State == "busy");
+        var legacyRun = StateRecord.Parse("error|D:\\x|55|run|npm test|3|2026-10-28T10:00:00.0000000+01:00");
+        Check("ancien format run lu", legacyRun.IsRun && legacyRun.Proc == null && legacyRun.Label == "npm test" && legacyRun.Code == "3" && legacyRun.Start != null);
+        var rec = new StateRecord { Harness = "codex", State = "waiting", Dir = "D:\\a|b", Proc = "codex", Pid = 99, Transcript = "t" };
+        var back = StateRecord.Parse(rec.Write());
+        Check("aller-retour JSON (codex, dossier avec |)", back.Harness == "codex" && back.Proc == "codex" && back.Dir == "D:\\a|b" && back.Pid == 99 && back.State == "waiting");
+        var runRec = new StateRecord { Harness = "run", State = "ready", Pid = 7, Label = "x", Code = "0", Start = new DateTime(2026, 10, 28, 9, 0, 0, DateTimeKind.Local) };
+        var runBack = StateRecord.Parse(runRec.Write());
+        Check("aller-retour JSON run avec heure de lancement", runBack.IsRun && runBack.Start == runRec.Start && runBack.Code == "0");
+        Check("outil invalide ramene a claude", StateRecord.Parse("{\"harness\":\"../x\",\"state\":\"busy\",\"proc\":\"a b\"}").Harness == "claude"
+                                              && StateRecord.Parse("{\"harness\":\"../x\",\"state\":\"busy\",\"proc\":\"a b\"}").Proc == null);
+        Check("fichier vide ou illisible", StateRecord.Parse("") == null && StateRecord.Parse("   ") == null);
+
+        Console.WriteLine("Phase 1 : budget d'attention");
+        var t0 = new DateTime(2026, 10, 28, 10, 0, 0);
+        Func<int, string, Notice> N = (p, key) => new Notice { Priority = p, Key = key, Created = t0, Expires = t0.AddMinutes(5) };
+        var at = new Attention();
+        at.Add(N(1, "run")); at.Add(N(0, "demande")); at.Add(N(3, "info"));
+        Check("la demande passe en premier", at.Next(t0, false, null).Key == "demande");
+        Check("rien n'interrompt une annonce de meme priorite ou moindre", at.Next(t0, false, 1) == null);
+        Check("puis la commande", at.Next(t0, false, null).Key == "run");
+        at.Add(N(0, "demande2"));
+        Check("une demande interrompt une info", at.Next(t0, false, 3).Key == "demande2");
+        Check("une info n'interrompt pas une demande", at.Next(t0, false, 0) == null);
+        at = new Attention();
+        at.Add(N(1, "a")); at.Add(new Notice { Priority = 2, Key = "sourdine", Created = t0, Expires = t0.AddMinutes(1), EvenQuiet = true });
+        Check("ne pas deranger : seule l'annonce de la sourdine passe", at.Next(t0, true, null).Key == "sourdine" && at.Next(t0, true, null) == null);
+        Check("annonce gardee pour apres la sourdine", at.Next(t0, false, null).Key == "a");
+        at = new Attention();
+        at.Add(N(1, "vieux"));
+        Check("annonce expiree abandonnee", at.Next(t0.AddMinutes(6), false, null) == null && at.Count == 0);
+        bool still = false;
+        at.Add(new Notice { Priority = 0, Key = "d", Created = t0, Expires = t0.AddHours(1), Valid = () => still });
+        Check("demande deja repondue abandonnee", at.Next(t0, false, null) == null);
+        at.Add(N(1, "k")); at.Add(new Notice { Priority = 1, Key = "k", Created = t0.AddSeconds(1), Expires = t0.AddMinutes(5), Payload = "nouveau" });
+        Check("meme cle : la nouvelle remplace l'ancienne", at.Count == 1 && (string)at.Next(t0, false, null).Payload == "nouveau");
+        Func<string, Notice> I = key => new Notice { Priority = 3, Key = key, Source = "connect:agenda", Created = t0, Expires = t0.AddHours(1) };
+        at.Add(I("i1")); at.Add(I("i2"));
+        Check("plafond par source : une info", at.Next(t0, false, null).Key == "i1" && at.Next(t0.AddSeconds(30), false, null) == null);
+        Check("la suivante apres l'intervalle", at.Next(t0 + Attention.SourceInterval, false, null).Key == "i2");
+        at.Add(N(0, "x")); at.Add(N(2, "y")); at.Drop(n => n.Priority <= 1);
+        Check("panneau ouvert : demandes et commandes retirees de la file", at.Count == 1);
+
+        Console.WriteLine("Phase 1 : caracteres invisibles et extraits (S4, S5)");
+        Check("inversion de texte rendue visible", Logic.Visible("rm\u202Efdp.exe") == "rm[U+202E]fdp.exe");
+        Check("saut de ligne et tabulation gardes", Logic.Visible("a\n\tb") == "a\n\tb");
+        int more;
+        var head = Logic.Head("1\r\n2\n3\n4", 2, out more);
+        Check("extrait : 2 premieres lignes et 2 de plus", head.Length == 2 && head[1] == "2" && more == 2);
+        Logic.Head("1\n2", 400, out more);
+        Check("extrait : tout tient", more == 0);
+
+        Console.WriteLine("Phase 1 : messages de Bip Connect");
+        string err;
+        var im = InfoMessage.Parse("{\"source\":\"agenda\",\"title\":\"Point équipe\",\"text\":\"Teams\\ndans 10 min\",\"priority\":2,\"ttl\":600}", out err);
+        Check("message valide", im != null && im.Source == "agenda" && im.Priority == 2 && im.Ttl == TimeSpan.FromMinutes(10) && im.Text == "Teams dans 10 min");
+        Check("source invalide refusee", InfoMessage.Parse("{\"source\":\"Agenda X\",\"title\":\"t\"}", out err) == null && err.StartsWith("source"));
+        Check("titre manquant refuse", InfoMessage.Parse("{\"source\":\"a\"}", out err) == null);
+        Check("JSON illisible refuse", InfoMessage.Parse("pas du json", out err) == null);
+        Check("priorite jamais au niveau d'une demande", InfoMessage.Parse("{\"source\":\"a\",\"title\":\"t\",\"priority\":0}", out err).Priority == 2);
+        Check("priorite par defaut : 3", InfoMessage.Parse("{\"source\":\"a\",\"title\":\"t\"}", out err).Priority == 3);
+        Check("duree bornee (10 s a 1 h)", InfoMessage.Parse("{\"source\":\"a\",\"title\":\"t\",\"ttl\":99999}", out err).Ttl == TimeSpan.FromHours(1)
+                                         && InfoMessage.Parse("{\"source\":\"a\",\"title\":\"t\",\"ttl\":1}", out err).Ttl == TimeSpan.FromSeconds(10));
+        var longMsg = InfoMessage.Parse("{\"source\":\"a\",\"title\":\"" + new string('x', 200) + "\",\"text\":\"" + new string('y', 500) + "\"}", out err);
+        Check("titre et texte bornes", longMsg.Title.Length == 80 && longMsg.Text.Length == 280);
+        Check("caracteres invisibles du titre rendus visibles", InfoMessage.Parse("{\"source\":\"a\",\"title\":\"x\\u202Ey\"}", out err).Title == "x[U+202E]y");
+
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
     }

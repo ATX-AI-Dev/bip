@@ -4,7 +4,18 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 ## [Non publié]
 
-Correctifs issus de l'audit du 23/10/2026. · *Fixes from the 2026-10-23 audit.*
+### Phase 1 « compagnon » : fondations (fork personnel)
+
+- **Format d'état commun** : `state\<id>.state` en JSON (`harness`, `state`, `dir`, `pid`, `proc`…), lu aussi dans l'ancien format. Chaque outil d'agent (claude, codex…) a son nom de processus, preuve que la session vit ; `NotchHook.exe … --harness <outil>` remonte jusqu'à ce processus. Les sessions d'un autre outil s'affichent « codex · dossier/ ».
+- **Budget d'attention** : toutes les entrouvertures passent par une file à priorités (demande, puis fin de commande, puis résumé ou info). Avant, une fin de commande pouvait remplacer l'annonce d'une permission.
+- **Rendre la main à Claude** : une demande sans réponse repart vers la fenêtre Claude au bout de 5, 10 (défaut), 30 ou 60 min (réglages), et tout de suite si le poste est verrouillé ou la session à distance déconnectée. Avant, la session pouvait attendre une heure.
+- **Cartes de permission complètes** : fichier écrit, modifications et entrées d'outils montrés jusqu'à 400 lignes par bloc (avant : 12, 8 et 3 modifications) ; ce qui reste caché est compté et signalé en rouge.
+- **Rapport d'audit** : caractères invisibles ou d'inversion (U+202E…) rendus visibles, comme dans l'encoche.
+- **Canal Bip Connect en lecture seule** et commande `bip info` : afficher une info venue d'un autre programme, sans aucun pouvoir sur les demandes ni les sessions ; plafonds par source.
+- L'identifiant de session est toujours assaini avant de servir de nom de fichier.
+- 32 tests ajoutés (147 au total).
+
+### Correctifs issus de l'audit du 23/10/2026 · *Fixes from the 2026-10-23 audit*
 
 ### Sécurité
 

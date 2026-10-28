@@ -146,6 +146,27 @@ avec sa durée. À la fin, Bip s'entrouvre (« npm run build a fini · 4 min 12 
 avec le code de retour). `bip` renvoie le code de la commande : il s'utilise dans un script.
 Une petite croix retire une commande de l'encoche (si elle tourne encore, elle continue).
 
+### Afficher une info : `bip info` (canal Bip Connect)
+
+```bat
+bip info --source agenda --priorite 2 "Point équipe dans 10 min" "Teams"
+```
+
+L'info s'entrouvre avec un ⓘ et le nom de sa source (jamais avec Bip, qui représente les agents),
+puis reste dans la section « Infos » du panneau jusqu'à sa durée (`--duree`, 5 min par défaut,
+de 10 s à 1 h) ou jusqu'à ce que tu la retires. Ce canal est **en lecture seule** : séparé de
+celui des demandes, il ne peut ni répondre à une permission ni changer l'état d'une session.
+Priorité 2 ou 3 seulement, 10 messages par source toutes les 10 min, une entrouverture par source
+toutes les 2 min. Codes de retour : 0 acceptée, 1 refusée (raison affichée), 3 encoche absente.
+
+### Budget d'attention
+
+Une seule entrouverture à la fois, la plus importante d'abord : une demande (permission,
+question) passe avant une fin de commande, qui passe avant un résumé ou une info. Une demande
+interrompt une annonce en cours, jamais l'inverse. Une demande sans réponse dans l'encoche
+repart vers la fenêtre Claude au bout du délai choisi dans les réglages (10 min par défaut), et
+tout de suite si le poste est verrouillé ou la session à distance déconnectée.
+
 ### Journal d'audit
 
 Bip garde la trace de **tout ce que les agents font sur le poste** : chaque commande, fichier

@@ -5,7 +5,7 @@
 // couleurs et sa saisie restent intactes. bip renvoie le code de retour de la commande.
 // La commande est executee par cmd.exe (pour une commande PowerShell : bip run pwsh -c "...").
 //
-// Etat ecrit dans state\run-<pid>.state : "etat|dossier|pid|run|commande|code|debut".
+// Etat ecrit dans state\run-<pid>.state, au format commun (StateRecord, harness "run").
 
 using System;
 using System.Diagnostics;
@@ -26,23 +26,26 @@ static class BipCli
             Console.WriteLine("Bip v" + ClaudeNotch.AppVersion.Text);
             return 0;
         }
+        if (first == "info") return Info(args);
         string command = first == "run" ? ClaudeNotch.Logic.UnwrapCommand(RawAfterRun(), File.Exists) : "";
         if (command.Length == 0)
         {
             Console.WriteLine("Bip v" + ClaudeNotch.AppVersion.Text + " — suivre une commande longue dans l'encoche");
             Console.WriteLine();
             Console.WriteLine("  bip run <commande>     ex. : bip run npm run build");
+            Console.WriteLine("  bip info [--source nom] [--priorite 2|3] [--duree secondes] \"titre\" [\"texte\"]");
+            Console.WriteLine("                         afficher une info dans l'encoche (canal Bip Connect)");
             Console.WriteLine("  bip --version");
             return first == "" || first == "help" || first == "-h" || first == "--help" ? 0 : 2;
         }
 
         int pid;
-        string start;
+        DateTime startTime;
         using (var me = Process.GetCurrentProcess())
         {
             pid = me.Id;
             // Heure de lancement : ordre dans l'encoche, et preuve que le pid est bien le notre.
-            start = me.StartTime.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+            startTime = me.StartTime;
         }
         string file = Path.Combine(Root, "state", "run-" + pid + ".state");
         string dir = Environment.CurrentDirectory;
@@ -59,7 +62,8 @@ static class BipCli
             interrupted = true;
         };
 
-        Write(file, "busy|" + dir + "|" + pid + "|run|" + label + "||" + start);
+        var rec = new ClaudeNotch.StateRecord { Harness = "run", State = "busy", Dir = dir, Pid = pid, Label = label, Start = startTime };
+        Write(file, rec.Write());
         int code;
         try
         {
@@ -79,8 +83,47 @@ static class BipCli
         // Une commande qui gere Ctrl+C et finit proprement (code 0) n'est pas un echec.
         bool stopped = interrupted && code != 0;
         string outcome = stopped ? "interrompu" : code.ToString();
-        Write(file, (code == 0 ? "ready" : "error") + "|" + dir + "|" + pid + "|run|" + label + "|" + outcome + "|" + start);
+        rec.State = code == 0 ? "ready" : "error";
+        rec.Code = outcome;
+        Write(file, rec.Write());
         return code;
+    }
+
+    // bip info : envoie une info a l'encoche par le canal Bip Connect (lecture seule cote encoche).
+    // Code de retour : 0 acceptee, 1 refusee, 2 usage, 3 encoche absente.
+    static int Info(string[] args)
+    {
+        string source = "manuel", title = null, text = "";
+        int priority = 3, ttl = 300;
+        for (int i = 1; i < args.Length; i++)
+        {
+            string a = args[i];
+            if (a == "--source" && i + 1 < args.Length) source = args[++i];
+            else if (a == "--priorite" && i + 1 < args.Length) int.TryParse(args[++i], out priority);
+            else if (a == "--duree" && i + 1 < args.Length) int.TryParse(args[++i], out ttl);
+            else if (title == null) title = a;
+            else text = a;
+        }
+        if (string.IsNullOrWhiteSpace(title)) { Console.Error.WriteLine("bip info : titre manquant"); return 2; }
+
+        var msg = ClaudeNotch.Json.Write(new System.Collections.Generic.Dictionary<string, object>
+            { { "source", source }, { "title", title }, { "text", text }, { "priority", priority }, { "ttl", ttl } });
+        string name = "BipConnect-" + System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
+        try
+        {
+            using (var pipe = new System.IO.Pipes.NamedPipeClientStream(".", name, System.IO.Pipes.PipeDirection.InOut))
+            {
+                try { pipe.Connect(1000); }
+                catch (TimeoutException) { Console.Error.WriteLine("bip info : l'encoche ne tourne pas"); return 3; }
+                var bytes = new UTF8Encoding(false).GetBytes(msg + "\n");
+                pipe.Write(bytes, 0, bytes.Length);
+                pipe.Flush();
+                var reply = new System.IO.StreamReader(pipe, Encoding.UTF8).ReadLine() ?? "";
+                Console.WriteLine(reply);
+                return reply == "ok" ? 0 : 1;
+            }
+        }
+        catch (Exception ex) { Console.Error.WriteLine("bip info : " + ex.Message); return 3; }
     }
 
     // Tout ce qui suit "run" sur la ligne de commande, tel que tape (guillemets compris).

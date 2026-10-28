@@ -29,7 +29,7 @@ rem NotchHook.exe est lance a chaque appel d'outil : s'il est verrouille par une
 rem session active, on compile a cote puis on retente la mise en place.
 "%CSC%" /nologo /target:winexe /optimize+ /warn:1 ^
   /out:"%~dp0NotchHook.new" /r:System.dll /r:System.Core.dll ^
-  "%~dp0src\NotchHook.cs" "%~dp0src\Version.cs" "%~dp0src\Json.cs" "%~dp0src\Audit.cs"
+  "%~dp0src\NotchHook.cs" "%~dp0src\Version.cs" "%~dp0src\Json.cs" "%~dp0src\Audit.cs" "%~dp0src\Logic.cs"
 if errorlevel 1 (
   echo.
   echo Compilation de NotchHook echouee.
@@ -52,7 +52,7 @@ if not defined PLACED (
 rem bip.exe : la commande "bip run", en console pour partager le terminal.
 "%CSC%" /nologo /target:exe /optimize+ /warn:1 ^
   /out:"%~dp0bip.exe" /r:System.dll /r:System.Core.dll ^
-  "%~dp0src\BipCli.cs" "%~dp0src\Version.cs" "%~dp0src\Logic.cs"
+  "%~dp0src\BipCli.cs" "%~dp0src\Version.cs" "%~dp0src\Logic.cs" "%~dp0src\Json.cs"
 if errorlevel 1 (
   echo.
   echo Compilation de bip echouee.
