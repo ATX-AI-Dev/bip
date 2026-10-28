@@ -846,6 +846,9 @@ namespace ClaudeNotch
             if (!_infoRate.TryGetValue(m.Source, out q)) _infoRate[m.Source] = q = new Queue<DateTime>();
             while (q.Count > 0 && now - q.Peek() > INFO_WINDOW) q.Dequeue();
             if (q.Count >= INFO_PER_SOURCE) return "trop de messages de cette source (" + INFO_PER_SOURCE + " par 10 min)";
+            // Sources muettes depuis 10 min : oubliees (pas d'accumulation de noms de source).
+            foreach (var k in _infoRate.Where(kv => kv.Key != m.Source && kv.Value.All(t => now - t > INFO_WINDOW)).Select(kv => kv.Key).ToList())
+                _infoRate.Remove(k);
             q.Enqueue(now);
 
             _infos.RemoveAll(x => x.Msg.Key == m.Key);
@@ -1959,8 +1962,10 @@ namespace ClaudeNotch
             {
                 case "Bash":
                 case "PowerShell":
-                    line(Json.Str(input, "command") ?? "", null);
-                    return 0;
+                    // Ligne par ligne : une commande sur plusieurs lignes en un seul bloc de texte comptait
+                    // pour une ligne, et l'avertissement "fais defiler" ne s'affichait jamais.
+                    Excerpt(line, Json.Str(input, "command") ?? "", "", null, CARD_LINES, ref hidden);
+                    return hidden;
                 case "Edit":
                     line(path ?? "", Muted);
                     Diff(line, Json.Str(input, "old_string"), Json.Str(input, "new_string"), ref hidden);

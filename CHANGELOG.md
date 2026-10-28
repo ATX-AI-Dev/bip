@@ -13,7 +13,7 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 - **Rapport d'audit** : caractères invisibles ou d'inversion (U+202E…) rendus visibles, comme dans l'encoche.
 - **Canal Bip Connect en lecture seule** et commande `bip info` : afficher une info venue d'un autre programme, sans aucun pouvoir sur les demandes ni les sessions ; plafonds par source.
 - L'identifiant de session est toujours assaini avant de servir de nom de fichier.
-- 32 tests ajoutés (147 au total).
+- 39 tests ajoutés (154 au total). Relecture de sécurité Gemini : commande shell sur plusieurs lignes comptée pour une ligne (avertissement jamais affiché, défaut déjà présent en v0.3.0), demande détachée de sa session si l'identifiant contient des caractères spéciaux, canal Bip Connect bloquable par des connexions muettes ou inondable en changeant de source, session liée à un shell intermédiaire, transcript réseau, sources usurpant Bip ou un agent : tous corrigés.
 
 ### Correctifs issus de l'audit du 23/10/2026 · *Fixes from the 2026-10-23 audit*
 

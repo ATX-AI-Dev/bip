@@ -44,6 +44,20 @@ namespace ClaudeNotch
             return c;
         }
 
+        // Identifiant de session -> nom de fichier dans state\ : jamais de separateur ni de caractere
+        // interdit. Le hook et l'encoche l'appliquent tous deux, pour que la demande retrouve sa session.
+        public static string SanitizeId(string id, string dir)
+        {
+            if (string.IsNullOrEmpty(id)) id = (dir ?? "").Replace(' ', '_');
+            foreach (char c in System.IO.Path.GetInvalidFileNameChars()) id = id.Replace(c, '_');
+            return string.IsNullOrEmpty(id.Trim('.')) ? "session" : id;
+        }
+
+        // Caracteres invisibles hors des categories Format et Control (blancs de remplissage, joint de
+        // graphemes...) : traites comme eux.
+        static readonly HashSet<char> Blank = new HashSet<char>
+            { '͏', 'ᅟ', 'ᅠ', '឴', '឵', '⠀', 'ㅤ', 'ﾠ' };
+
         // Rend visibles les caracteres invisibles ou de controle (U+202E et consorts) : le texte
         // affiche doit etre celui qui sera execute. Saut de ligne et tabulation gardes.
         public static string Visible(string s)
@@ -53,7 +67,7 @@ namespace ClaudeNotch
             foreach (char c in s)
             {
                 var cat = char.GetUnicodeCategory(c);
-                if ((cat == UnicodeCategory.Format || cat == UnicodeCategory.Control) && c != '\n' && c != '\t')
+                if (((cat == UnicodeCategory.Format || cat == UnicodeCategory.Control) && c != '\n' && c != '\t') || Blank.Contains(c))
                     sb.Append("[U+").Append(((int)c).ToString("X4")).Append(']');
                 else sb.Append(c);
             }
@@ -222,6 +236,10 @@ namespace ClaudeNotch
 
         static readonly Regex SourceName = new Regex("^[a-z0-9][a-z0-9-]{0,23}$");
 
+        // Noms qui pourraient faire passer une info pour un message de Bip ou d'un agent.
+        static readonly HashSet<string> Reserved = new HashSet<string>
+            { "bip", "claude", "codex", "antigravity", "agy", "agent", "session", "run", "permission", "demande", "question" };
+
         // Message valide (textes rendus visibles et bornes), ou null avec la raison du refus.
         public static InfoMessage Parse(string json, out string error)
         {
@@ -231,6 +249,7 @@ namespace ClaudeNotch
             if (d == null) { error = "JSON illisible"; return null; }
             var source = Json.Str(d, "source");
             if (source == null || !SourceName.IsMatch(source)) { error = "source invalide (a-z, 0-9, tiret, 24 caractères au plus)"; return null; }
+            if (Reserved.Contains(source)) { error = "source réservée"; return null; }
             var title = Json.Str(d, "title");
             if (string.IsNullOrWhiteSpace(title)) { error = "titre manquant"; return null; }
             int prio = 3, ttl = 300, v;

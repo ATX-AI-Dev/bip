@@ -99,9 +99,12 @@ namespace ClaudeNotch
 
         public static string Title(string transcript)
         {
-            if (string.IsNullOrEmpty(transcript)) return null;
+            // Fichier local seulement : un chemin reseau (\\serveur\...) lu toutes les 500 ms bloquerait
+            // l'encoche et ouvrirait une connexion SMB.
+            if (string.IsNullOrEmpty(transcript) || transcript.StartsWith("\\\\") || transcript.StartsWith("//")) return null;
             try
             {
+                if (!Path.IsPathRooted(transcript)) return null;   // leve sur un caractere interdit : rattrape plus bas
                 using (var fs = new FileStream(transcript, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
                     long len = fs.Length;

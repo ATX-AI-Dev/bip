@@ -333,6 +333,16 @@ static class AuditTests
         Check("titre et texte bornes", longMsg.Title.Length == 80 && longMsg.Text.Length == 280);
         Check("caracteres invisibles du titre rendus visibles", InfoMessage.Parse("{\"source\":\"a\",\"title\":\"x\\u202Ey\"}", out err).Title == "x[U+202E]y");
 
+        Console.WriteLine("Phase 1 : relecture de securite");
+        Check("identifiant assaini comme nom de fichier", Logic.SanitizeId("a/b\\c:d", null) == "a_b_c_d");
+        Check("identifiant absent : dossier, espaces et deux-points remplaces", Logic.SanitizeId(null, "D:\\mon projet") == "D__mon_projet");
+        Check("identifiant vide ou fait de points : session", Logic.SanitizeId("..", null) == "session" && Logic.SanitizeId("", "") == "session");
+        Check("blancs de remplissage rendus visibles", Logic.Visible("a\u2800b\u3164c\u034Fd") == "a[U+2800]b[U+3164]c[U+034F]d");
+        Check("source reservee refusee", InfoMessage.Parse("{\"source\":\"claude\",\"title\":\"t\"}", out err) == null && err == "source réservée"
+                                       && InfoMessage.Parse("{\"source\":\"bip\",\"title\":\"t\"}", out err) == null);
+        Check("transcript reseau ignore", Agents.Title("\\\\serveur\\partage\\x.jsonl") == null && Agents.Title("//serveur/x") == null);
+        Check("transcript relatif ignore", Agents.Title("x.jsonl") == null);
+
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
     }

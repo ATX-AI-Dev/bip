@@ -576,7 +576,8 @@ namespace ClaudeNotch
                 p = new Pending
                 {
                     Kind = parts[0],
-                    SessionId = Json.Str(payload, "session_id") ?? "",
+                    // Identifiant du fichier d'etat, fourni par le hook ; a defaut, assaini de la meme facon.
+                    SessionId = Json.Str(payload, "bip_sess") ?? Logic.SanitizeId(Json.Str(payload, "session_id"), Json.Str(payload, "cwd")),
                     Cwd = Json.Str(payload, "cwd") ?? "",
                     Proj = Json.Str(payload, "bip_proj") ?? Json.Str(payload, "cwd") ?? "",
                     Payload = payload
@@ -657,6 +658,23 @@ namespace ClaudeNotch
         readonly Func<InfoMessage, string> _onInfo;   // null si accepte, sinon la raison du refus
         readonly Action<string> _log;
         int _active;                                   // connexions en cours (4 au plus)
+        // Plafond global, en plus de celui par source : changer de nom de source a chaque message ne
+        // doit pas permettre d'inonder le fil de l'interface.
+        const int GLOBAL_PER_MINUTE = 30;
+        readonly Queue<DateTime> _recent = new Queue<DateTime>();
+        static readonly TimeSpan READ_TIMEOUT = TimeSpan.FromSeconds(2);
+
+        bool Allow()
+        {
+            lock (_recent)
+            {
+                var now = DateTime.UtcNow;
+                while (_recent.Count > 0 && now - _recent.Peek() > TimeSpan.FromMinutes(1)) _recent.Dequeue();
+                if (_recent.Count >= GLOBAL_PER_MINUTE) return false;
+                _recent.Enqueue(now);
+                return true;
+            }
+        }
 
         public InfoServer(Func<InfoMessage, string> onInfo, Action<string> log) { _onInfo = onInfo; _log = log; }
 
@@ -671,8 +689,9 @@ namespace ClaudeNotch
                 NamedPipeServerStream pipe = null;
                 try
                 {
+                    // Asynchronous : la lecture peut etre abandonnee au bout de READ_TIMEOUT.
                     pipe = new NamedPipeServerStream(Name, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-                                                     PipeTransmissionMode.Byte, PipeOptions.None, 0, 0, sec);
+                                                     PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, sec);
                     pipe.WaitForConnection();
                     // Un client qui ne finit jamais sa ligne ne bloque qu'un fil ; au-dela de 4, refuse.
                     if (Interlocked.Increment(ref _active) > 4) { Interlocked.Decrement(ref _active); pipe.Dispose(); continue; }
@@ -694,19 +713,30 @@ namespace ClaudeNotch
             {
                 try
                 {
+                    // Une ligne en READ_TIMEOUT au plus : un client qui n'ecrit rien ne garde pas sa place.
                     var buf = new MemoryStream();
-                    int b;
-                    while ((b = pipe.ReadByte()) >= 0 && b != '\n')
+                    var chunk = new byte[512];
+                    var deadline = DateTime.UtcNow + READ_TIMEOUT;
+                    while (true)
                     {
-                        if (buf.Length >= InfoMessage.MaxBytes) { Reply(pipe, "refusé : message trop long"); return; }
-                        buf.WriteByte((byte)b);
+                        var left = deadline - DateTime.UtcNow;
+                        if (left <= TimeSpan.Zero) return;
+                        var read = pipe.ReadAsync(chunk, 0, chunk.Length);
+                        if (!read.Wait(left)) return;   // la fermeture du pipe abandonne la lecture
+                        int n = read.Result;
+                        if (n <= 0) break;
+                        int nl = Array.IndexOf(chunk, (byte)'\n', 0, n);
+                        buf.Write(chunk, 0, nl >= 0 ? nl : n);
+                        if (buf.Length > InfoMessage.MaxBytes) { Reply(pipe, "refusé : message trop long"); return; }
+                        if (nl >= 0) break;
                     }
                     string error;
                     var msg = InfoMessage.Parse(Encoding.UTF8.GetString(buf.ToArray()), out error);
-                    var refused = msg == null ? error : _onInfo(msg);
+                    string refused = msg == null ? error : !Allow() ? "trop de messages (" + GLOBAL_PER_MINUTE + " par minute au total)" : _onInfo(msg);
                     Reply(pipe, refused == null ? "ok" : "refusé : " + refused);
                 }
                 catch (IOException) { }
+                catch (AggregateException) { }
             }
         }
 

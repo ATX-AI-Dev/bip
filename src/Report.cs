@@ -250,7 +250,7 @@ function tiles(rows) {
 const pill = d => d.startsWith('refus') ? 'ko' : d.startsWith('autoris') || d.startsWith('règle') ? 'ok' : 'na';
 const line = (r, sub) => `<div class='row'><div class='t'>${esc(r.t.slice(11, sub ? 16 : 16))}</div>`
   + `<div><span class='chip k-${r.k}' title='${esc(r.tool)}'>${KIND[r.k] || 'outil'}</span></div>`
-  + `<div class='o mono' title='${esc(r.of)}'>${esc(r.o)}</div>`
+  + `<div class='o mono' dir='ltr' title='${esc(r.of)}'>${esc(r.o)}</div>`
   + `<div><div class='pill ${pill(r.dec)}'>${esc(r.dec)}</div><div class='via'>${esc(r.via)}</div></div>`
   + `<div class='res ${r.res === 'échoué' ? 'ko' : ''}' title='${esc(r.who)}'>${esc(r.res)}</div></div>`;
 

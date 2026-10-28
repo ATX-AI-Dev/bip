@@ -60,24 +60,24 @@ static class NotchHook
 
     // Le PID qui prouve que la session vit : le processus de l'outil (claude.exe, codex.exe...).
     // Claude Code lance le hook directement ; un autre outil peut passer par un shell : on remonte
-    // alors quelques parents jusqu'au processus qui porte le nom de l'outil. A defaut, le parent direct.
+    // alors quelques parents jusqu'au processus qui porte le nom de l'outil. Introuvable : 0, et
+    // l'encoche juge la session a son anciennete (lier la session au shell, qui meurt aussitot, la
+    // ferait disparaitre).
     static int SessionPid(string proc)
     {
-        int first = 0;
         try
         {
             var p = Process.GetCurrentProcess();
-            for (int level = 0; level < 4; level++)
+            for (int level = 0; level < 6; level++)
             {
                 int pid = ParentOf(p);
                 if (pid <= 0) break;
-                if (level == 0) first = pid;
                 try { p = Process.GetProcessById(pid); } catch { break; }
                 if (string.Equals(p.ProcessName, proc, StringComparison.OrdinalIgnoreCase)) return pid;
             }
         }
         catch { }
-        return first;
+        return 0;
     }
 
     // "--harness codex" : l'outil qui appelle le hook (claude par defaut).
@@ -136,10 +136,8 @@ static class NotchHook
             string dir = Json.Str(d, "cwd");
             if (string.IsNullOrEmpty(dir)) dir = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? "";
 
-            if (string.IsNullOrEmpty(id)) id = (dir ?? "").Replace(' ', '_');
-            // L'identifiant devient un nom de fichier dans state\ : jamais de separateur ni de caractere interdit.
-            foreach (char c in Path.GetInvalidFileNameChars()) id = id.Replace(c, '_');
-            if (string.IsNullOrEmpty(id.Trim('.'))) id = "session";
+            // L'identifiant devient un nom de fichier dans state\ ; relaye tel quel a l'encoche (bip_sess).
+            id = Logic.SanitizeId(id, dir);
 
             string evt = Json.Str(d, "hook_event_name") ?? "";
             // Racine du projet (les regles "ce projet" y sont ecrites) ; dir peut etre un sous-dossier.
@@ -176,7 +174,7 @@ static class NotchHook
                 if (mode == "permission" && (tool == "ExitPlanMode" || tool == "AskUserQuestion")) return 0;
 
                 if (mode == "permission") AuditTool("PermissionRequest", d, id, dir, proj);
-                string reply = Relay(mode, WithProject(input, proj));
+                string reply = Relay(mode, WithBipFields(input, proj, id));
                 if (!string.IsNullOrEmpty(reply))
                 {
                     // La reponse d'abord : Claude attend, le journal peut suivre.
@@ -196,12 +194,15 @@ static class NotchHook
 
     // ------------------------------------------------------------ journal d'audit
 
-    // Ajoute la racine du projet au JSON relaye a l'encoche (champ "bip_proj").
-    static string WithProject(string input, string proj)
+    // Ajoute au JSON relaye a l'encoche la racine du projet ("bip_proj") et l'identifiant de session
+    // tel qu'il nomme le fichier d'etat ("bip_sess") : la demande retrouve toujours sa session.
+    static string WithBipFields(string input, string proj, string id)
     {
         var t = input.TrimStart();
-        if (string.IsNullOrEmpty(proj) || !t.StartsWith("{")) return input;
-        return "{\"bip_proj\":" + Json.Write(proj) + "," + t.Substring(1);
+        if (!t.StartsWith("{")) return input;
+        var extra = "\"bip_sess\":" + Json.Write(id) + ",";
+        if (!string.IsNullOrEmpty(proj)) extra += "\"bip_proj\":" + Json.Write(proj) + ",";
+        return "{" + extra + t.Substring(1);
     }
 
     static void AuditTool(string evt, Dictionary<string, object> d, string id, string dir, string proj)
@@ -332,9 +333,10 @@ static class NotchHook
         // La date de creation du fichier, conservee par les reecritures, donne l'ordre de
         // lancement des sessions dans l'encoche. Quelques essais : l'encoche lit le fichier, un
         // autre hook peut l'ecrire.
+        int pid = SessionPid(harness);
         string text = new StateRecord
         {
-            Harness = harness, State = state, Dir = dir, Proc = harness, Pid = SessionPid(harness), Transcript = transcript
+            Harness = harness, State = state, Dir = dir, Proc = pid > 0 ? harness : null, Pid = pid, Transcript = transcript
         }.Write();
         for (int i = 0; ; i++)
         {
