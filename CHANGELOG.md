@@ -4,6 +4,14 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 ## [Non publié]
 
+### Phase 2 « compagnon » : Antigravity
+
+- **Sessions Antigravity dans l'encoche** : « agy · titre · dossier/ », état (au repos, en cours, prête, erreur), titre tiré de la dernière demande, preuve de vie par le processus `agy`. Contrat des hooks vérifié dans la documentation officielle et par un essai réel (hook espion) le 28/10/2026.
+- **Journal d'audit** : chaque outil utilisé par Antigravity (commande, résultat ou échec) est inscrit ; ses commandes comptent dans le récap de fin de tour et le rapport.
+- **Ses demandes de permission restent dans Antigravity** : aucun de ses évènements ne signale une attente ; le hook répond toujours la décision neutre (`allow` : la politique normale d'Antigravity décide).
+- **Installation sûre** : script relais `~/.gemini/config/bip-hook.cmd` hors du dossier de Bip et entrée `bip` dans `hooks.json`. Essai réel : un hook introuvable fait planter toute la tâche d'Antigravity (message de `cmd.exe` illisible en UTF-8) ; avec le relais, Bip absent, Antigravity continue normalement. Commande sans guillemets (Antigravity les échappe pour `cmd.exe`), chemin court si besoin.
+- 12 tests ajoutés (168 au total).
+
 ### Phase 1 « compagnon » : fondations (fork personnel)
 
 - **Format d'état commun** : `state\<id>.state` en JSON (`harness`, `state`, `dir`, `pid`, `proc`…), lu aussi dans l'ancien format. Chaque outil d'agent (claude, codex…) a son nom de processus, preuve que la session vit ; `NotchHook.exe … --harness <outil>` remonte jusqu'à ce processus. Les sessions d'un autre outil s'affichent « codex · dossier/ ».

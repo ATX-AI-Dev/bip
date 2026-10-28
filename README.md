@@ -159,6 +159,19 @@ celui des demandes, il ne peut ni répondre à une permission ni changer l'état
 Priorité 2 ou 3 seulement, 10 messages par source toutes les 10 min, une entrouverture par source
 toutes les 2 min. Codes de retour : 0 acceptée, 1 refusée (raison affichée), 3 encoche absente.
 
+### Antigravity
+
+Si Antigravity est installé, `installer.cmd` le branche aussi : ses sessions apparaissent dans
+l'encoche (« agy · titre · dossier/ », au repos, en cours, prête ou en erreur) et chaque outil
+qu'il utilise est inscrit au journal d'audit. **Ses demandes de permission restent dans
+Antigravity** : ses hooks ne signalent pas qu'il attend une réponse, Bip ne répond jamais à sa place.
+
+L'installeur pose un petit script relais, `~/.gemini/config/bip-hook.cmd`, et une entrée `bip`
+dans `~/.gemini/config/hooks.json`. Le relais vit hors du dossier de Bip : si Bip est supprimé
+sans désinstallation, il renvoie la réponse neutre et Antigravity continue comme sans hook
+(sans lui, Antigravity arrête toute sa tâche sur un hook introuvable). `desinstaller.cmd` retire
+l'entrée et le relais.
+
 ### Budget d'attention
 
 Une seule entrouverture à la fois, la plus importante d'abord : une demande (permission,

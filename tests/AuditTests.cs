@@ -351,6 +351,23 @@ static class AuditTests
         Check("transcript reseau ignore", Agents.Title("\\\\serveur\\partage\\x.jsonl") == null && Agents.Title("//serveur/x") == null);
         Check("transcript relatif ignore", Agents.Title("x.jsonl") == null);
 
+        Console.WriteLine("Phase 2 : Antigravity");
+        // Entrees reelles capturees le 28/10/2026 par un hook espion (abregees).
+        var agyStart = Json.Obj(Json.Parse("{\"conversationId\":\"c98\",\"lastUserInput\":\"Relis la branche fix\\nsecond\",\"workspacePaths\":[\"C:/Users/Ludo/agy-test\"]}"));
+        Check("dossier : premier espace de travail, barres Windows", Logic.AgyDir(agyStart) == "C:\\Users\\Ludo\\agy-test");
+        Check("titre : premiere ligne de la demande", Logic.AgyTitle(agyStart) == "Relis la branche fix");
+        Check("titre long borne a 60", Logic.AgyTitle(Json.Obj(Json.Parse("{\"lastUserInput\":\"" + new string('x', 200) + "\"}"))).Length == 60);
+        Check("sans espace de travail : dossier vide", Logic.AgyDir(Json.Obj(Json.Parse("{}"))) == "");
+        Check("SessionStart : au repos", Logic.AgyState("SessionStart", agyStart) == "idle");
+        Check("PreToolUse, PostInvocation : en cours", Logic.AgyState("PreToolUse", agyStart) == "busy" && Logic.AgyState("PostInvocation", agyStart) == "busy");
+        Check("Stop sans erreur, tout fini : pret", Logic.AgyState("Stop", Json.Obj(Json.Parse("{\"error\":\"\",\"fullyIdle\":true}"))) == "ready");
+        Check("Stop avec taches de fond : toujours en cours", Logic.AgyState("Stop", Json.Obj(Json.Parse("{\"error\":\"\",\"fullyIdle\":false}"))) == "busy");
+        Check("Stop en erreur : erreur", Logic.AgyState("Stop", Json.Obj(Json.Parse("{\"error\":\"quota\",\"fullyIdle\":true}"))) == "error");
+        Check("decision neutre : JSON valide, allow", Json.Str(Json.Obj(Json.Parse(Logic.AgyNeutralPreToolUse)), "decision") == "allow");
+        var agyRec = StateRecord.Parse(new StateRecord { Harness = "agy", State = "busy", Dir = "D:\\x", Title = "Relis \u202E la branche" }.Write());
+        Check("titre garde dans le fichier d'etat, rendu visible", agyRec.Harness == "agy" && agyRec.Title == "Relis [U+202E] la branche");
+        Check("commande Antigravity resumee", Audit.Summarize("run_command", Json.Obj(Json.Parse("{\"CommandLine\":\"dir /s\",\"WaitMsBeforeAsync\":5000}"))) == "dir /s");
+
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
     }

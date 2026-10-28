@@ -116,7 +116,7 @@ namespace ClaudeNotch
             if (r.Rule) return "rule";
             switch (r.Tool ?? "")
             {
-                case "Bash": case "PowerShell": return "cmd";
+                case "Bash": case "PowerShell": case "run_command": return "cmd";
                 case "Edit": case "MultiEdit": case "Write": case "NotebookEdit": return "file";
                 case "Read": case "Grep": case "Glob": case "LS": case "NotebookRead": return "read";
                 case "WebFetch": case "WebSearch": return "web";

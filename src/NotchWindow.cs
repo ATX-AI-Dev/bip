@@ -1735,7 +1735,7 @@ namespace ClaudeNotch
             catch { return null; }
             int files = rows.Where(r => (r.Tool == "Edit" || r.Tool == "Write" || r.Tool == "MultiEdit" || r.Tool == "NotebookEdit") && !r.Refused)
                             .Select(r => r.Obj).Distinct().Count();
-            int cmds = rows.Count(r => r.Tool == "Bash" || r.Tool == "PowerShell");
+            int cmds = rows.Count(r => r.Tool == "Bash" || r.Tool == "PowerShell" || r.Tool == "run_command");
             int agents = rows.Count(r => r.Tool == "Agent" || r.Tool == "Task");
             int fails = rows.Count(r => r.Result == "echec");
             int refused = rows.Count(r => r.Refused);

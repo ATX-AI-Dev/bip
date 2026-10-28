@@ -219,6 +219,7 @@ namespace ClaudeNotch
             switch (tool)
             {
                 case "Bash": case "PowerShell": s = Json.Str(input, "command"); break;
+                case "run_command": s = Json.Str(input, "CommandLine"); break;   // Antigravity
                 case "Edit": case "MultiEdit": case "Write": case "Read": s = Json.Str(input, "file_path"); break;
                 case "NotebookEdit": case "NotebookRead": s = Json.Str(input, "notebook_path"); break;
                 case "Glob": s = Json.Str(input, "pattern"); break;

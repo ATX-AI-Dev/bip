@@ -306,7 +306,7 @@ namespace ClaudeNotch
                         Label = rec.IsRun ? rec.Label : null,
                         Code = rec.Code,
                         // Titre du chat : transcript de Claude Code seulement (celui des autres outils n'est pas un format stable).
-                        Title = live && rec.Harness == "claude" ? Agents.Title(rec.Transcript) : null,
+                        Title = !live ? null : rec.Harness == "claude" ? Agents.Title(rec.Transcript) : rec.Title,
                         SubAgents = live ? Agents.Load(stateDir, id) : new List<SubAgent>()
                     });
                 }

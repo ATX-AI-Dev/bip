@@ -206,6 +206,7 @@ namespace ClaudeNotch
             Save(settings);
             CreateStartupLink();
             UserPath(true);
+            try { AgyInstall(); } catch (Exception ex) { Console.WriteLine("Antigravity non branché : " + ex.Message); }
 
             Console.WriteLine("Hooks ClaudeNotch installés dans " + SettingsPath +
                               (removed > 0 ? " (" + removed + " anciennes entrées remplacées)." : "."));
@@ -223,6 +224,7 @@ namespace ClaudeNotch
 
             try { if (File.Exists(StartupLink)) File.Delete(StartupLink); } catch { }
             UserPath(false);
+            AgyUninstall();
 
             EventWaitHandle ev;
             if (EventWaitHandle.TryOpenExisting(Program.QUIT_EVENT, out ev)) using (ev) ev.Set();
@@ -302,10 +304,100 @@ namespace ClaudeNotch
             return o;
         }
 
-        // Sauvegarde datee, puis ecriture via un fichier temporaire.
-        static void Save(Dictionary<string, object> settings)
+        static void Save(Dictionary<string, object> settings) { SaveJson(SettingsPath, settings); }
+
+        // ------------------------------------------------------------ Antigravity
+
+        static string AgyDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "config"); } }
+        static string AgyHooks { get { return Path.Combine(AgyDir, "hooks.json"); } }
+        static string AgyBridge { get { return Path.Combine(AgyDir, "bip-hook.cmd"); } }
+        const string AGY_KEY = "bip";   // entree de Bip dans hooks.json
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern int GetShortPathName(string longPath, StringBuilder shortPath, int size);
+
+        // Antigravity transmet la commande d'un hook a cmd.exe en echappant ses guillemets : la commande
+        // ne doit en contenir aucun, donc aucun espace (chemin court 8.3 au besoin).
+        static string NoSpace(string path)
         {
-            var path = SettingsPath;
+            if (!path.Contains(" ")) return path;
+            var sb = new StringBuilder(1024);
+            return GetShortPathName(path, sb, sb.Capacity) > 0 && !sb.ToString().Contains(" ") ? sb.ToString() : null;
+        }
+
+        // Branche Antigravity s'il est installe : un script relais a cote de hooks.json, et une entree
+        // "bip" dans hooks.json qui l'appelle pour chacun des six evenements. Le relais vit hors du
+        // dossier de Bip : Bip supprime sans desinstallation, il repond la decision neutre au lieu
+        // de laisser cmd.exe ecrire une erreur qu'Antigravity ne sait pas lire (sa tache s'arreterait).
+        static void AgyInstall()
+        {
+            if (!Directory.Exists(AgyDir)) { Console.WriteLine("Antigravity absent (" + AgyDir + ") : rien à brancher."); return; }
+            string hook = Path.Combine(Program.Root, HOOK_NAME);
+            if (hook.IndexOfAny(new[] { '"', '%', '^', '&' }) >= 0 || hook.Any(c => c > 127))
+            {
+                Console.WriteLine("Antigravity non branché : le chemin de Bip contient un caractère que cmd.exe interpréterait (" + hook + ").");
+                return;
+            }
+            var cfg = File.Exists(AgyHooks) ? Json.Obj(Json.Parse(File.ReadAllText(AgyHooks, Encoding.UTF8))) : new Dictionary<string, object>();
+            if (cfg == null) throw new Exception("hooks.json d'Antigravity illisible : rien n'a été modifié.");
+
+            File.WriteAllText(AgyBridge,
+                "@echo off\r\n" +
+                "rem Pont Antigravity -> Bip, ecrit par l'installeur de Bip (ClaudeNotch.exe --install).\r\n" +
+                "rem Bip absent : reponse neutre, Antigravity continue comme sans hook.\r\n" +
+                "if not exist \"" + hook + "\" goto neutre\r\n" +
+                "\"" + hook + "\" agy %1\r\n" +
+                "exit /b 0\r\n" +
+                ":neutre\r\n" +
+                "if \"%1\"==\"PreToolUse\" (echo " + Logic.AgyNeutralPreToolUse + ") else (echo {})\r\n",
+                Encoding.ASCII);
+            string bridge = NoSpace(AgyBridge);
+            if (bridge == null)
+            {
+                File.Delete(AgyBridge);
+                Console.WriteLine("Antigravity non branché : le dossier " + AgyDir + " contient un espace sans nom court.");
+                return;
+            }
+
+            var bip = new Dictionary<string, object>();
+            foreach (var ev in Logic.AgyEvents)
+            {
+                var handler = new Dictionary<string, object> { { "type", "command" }, { "command", bridge + " " + ev }, { "timeout", 10 } };
+                bip[ev] = ev == "PreToolUse" || ev == "PostToolUse"
+                    ? new object[] { new Dictionary<string, object> { { "matcher", "*" }, { "hooks", new object[] { handler } } } }
+                    : new object[] { handler };
+            }
+            cfg[AGY_KEY] = bip;
+            SaveJson(AgyHooks, cfg);
+            Console.WriteLine("Antigravity branché : " + AgyHooks + " (suivi des sessions et journal d'audit ; ses demandes de permission restent dans Antigravity).");
+        }
+
+        static void AgyUninstall()
+        {
+            try
+            {
+                if (File.Exists(AgyHooks))
+                {
+                    var cfg = Json.Obj(Json.Parse(File.ReadAllText(AgyHooks, Encoding.UTF8)));
+                    if (cfg != null && cfg.Remove(AGY_KEY))
+                    {
+                        if (cfg.Count == 0)
+                        {
+                            File.Copy(AgyHooks, AgyHooks + ".bak-claudenotch-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"), true);
+                            File.Delete(AgyHooks);
+                        }
+                        else SaveJson(AgyHooks, cfg);
+                        Console.WriteLine("Antigravity débranché : " + AgyHooks);
+                    }
+                }
+                if (File.Exists(AgyBridge)) File.Delete(AgyBridge);
+            }
+            catch (Exception ex) { Console.WriteLine("Antigravity : " + ex.Message); }
+        }
+
+        // Sauvegarde datee, puis ecriture via un fichier temporaire.
+        static void SaveJson(string path, Dictionary<string, object> settings)
+        {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             if (File.Exists(path))
             {

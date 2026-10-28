@@ -120,6 +120,9 @@ static class NotchHook
 
     static int Main(string[] args)
     {
+        // Antigravity : "NotchHook.exe agy <Evenement>". Sa reponse neutre part avant tout le reste :
+        // Antigravity attend une reponse JSON valide, et une sortie illisible arrete toute sa tache.
+        if (args.Length > 0 && args[0] == "agy") return Agy(args.Length > 1 ? args[1] : "");
         try
         {
             // L'instant de lancement fixe l'ordre des evenements (hooks async).
@@ -189,6 +192,48 @@ static class NotchHook
         }
         catch { /* un hook ne doit jamais faire echouer une session */ }
 
+        return 0;
+    }
+
+    // ------------------------------------------------------------ Antigravity
+
+    // Un evenement d'Antigravity (contrat : Logic.AgyState et suivants). Suivi et journal seulement :
+    // Antigravity ne signale pas ses demandes de permission, Bip ne repond jamais a sa place.
+    static int Agy(string evt)
+    {
+        try
+        {
+            var reply = evt == "PreToolUse" ? Logic.AgyNeutralPreToolUse : "{}";
+            var bytes = Encoding.ASCII.GetBytes(reply);
+            using (var o = Console.OpenStandardOutput()) { o.Write(bytes, 0, bytes.Length); o.Flush(); }
+        }
+        catch { }
+        try
+        {
+            if (Array.IndexOf(Logic.AgyEvents, evt) < 0) return 0;
+            DateTime started = Process.GetCurrentProcess().StartTime;
+            Dictionary<string, object> d = null;
+            try { d = Json.Obj(Json.Parse(ReadStdin())); } catch { }
+            if (d == null) return 0;
+            string dir = Logic.AgyDir(d);
+            string id = Logic.SanitizeId(Json.Str(d, "conversationId"), dir);
+            try { WriteState(id, Logic.AgyState(evt, d), dir, started, null, "agy", Logic.AgyTitle(d)); } catch { }
+
+            if (evt != "PreToolUse" && evt != "PostToolUse") return 0;
+            var call = Json.Obj(Json.Get(d, "toolCall"));
+            string tool = Json.Str(call, "name") ?? "";
+            var fields = new Dictionary<string, object>
+            {
+                { "sess", id }, { "tool", tool },
+                { "obj", Audit.Summarize(tool, Json.Obj(Json.Get(call, "args"))) },
+                // Antigravity n'a pas d'identifiant d'appel : conversation et numero d'etape en tiennent lieu.
+                { "tuid", id + ":" + Json.Str(d, "stepIdx") }
+            };
+            string ev = evt == "PreToolUse" ? "outil" : string.IsNullOrEmpty(Json.Str(d, "error")) ? "fait" : "echec";
+            if (ev == "outil") fields["dir"] = dir;
+            Audit.Write(Root, ev, fields);
+        }
+        catch { }
         return 0;
     }
 
@@ -312,7 +357,7 @@ static class NotchHook
 
     // ------------------------------------------------------------ etat de la session
 
-    static void WriteState(string id, string state, string dir, DateTime when, string transcript, string harness)
+    static void WriteState(string id, string state, string dir, DateTime when, string transcript, string harness, string title = null)
     {
         string stateDir = Path.Combine(Root, "state");
         Directory.CreateDirectory(stateDir);
@@ -336,7 +381,7 @@ static class NotchHook
         int pid = SessionPid(harness);
         string text = new StateRecord
         {
-            Harness = harness, State = state, Dir = dir, Proc = pid > 0 ? harness : null, Pid = pid, Transcript = transcript
+            Harness = harness, State = state, Dir = dir, Proc = pid > 0 ? harness : null, Pid = pid, Transcript = transcript, Title = title
         }.Write();
         for (int i = 0; ; i++)
         {

@@ -74,6 +74,47 @@ namespace ClaudeNotch
             return sb.ToString();
         }
 
+        // ------------------------------------------------------------ Antigravity (agy)
+
+        // Contrat verifie le 28/10/2026 (doc antigravity.google/docs/hooks et essai reel avec un hook
+        // espion) : six evenements, entree JSON camelCase sans dossier courant ni nom d'evenement (le
+        // hook le recoit en argument), aucun evenement "en attente de permission". PreToolUse exige
+        // une decision : "allow" laisse la politique normale d'Antigravity decider.
+        public const string AgyNeutralPreToolUse = "{\"decision\":\"allow\"}";
+
+        public static readonly string[] AgyEvents = { "SessionStart", "PreInvocation", "PreToolUse", "PostToolUse", "PostInvocation", "Stop" };
+
+        // Etat de la session apres un evenement Antigravity : idle, busy, ready, error.
+        public static string AgyState(string evt, Dictionary<string, object> d)
+        {
+            switch (evt)
+            {
+                case "SessionStart": return "idle";
+                case "Stop":
+                    if (!string.IsNullOrEmpty(Json.Str(d, "error"))) return "error";
+                    // Des taches de fond tournent encore : la session n'a pas fini.
+                    return Json.Get(d, "fullyIdle") is bool && !(bool)Json.Get(d, "fullyIdle") ? "busy" : "ready";
+                default: return "busy";
+            }
+        }
+
+        // Premier dossier de l'espace de travail (Antigravity donne des barres obliques), ou "".
+        public static string AgyDir(Dictionary<string, object> d)
+        {
+            var ws = Json.Arr(Json.Get(d, "workspacePaths"));
+            var first = ws != null && ws.Length > 0 ? Convert.ToString(ws[0]) : "";
+            return (first ?? "").Replace('/', '\\');
+        }
+
+        // Titre de la session : la premiere ligne de la derniere demande, rendue visible et bornee.
+        public static string AgyTitle(Dictionary<string, object> d)
+        {
+            var s = Json.Str(d, "lastUserInput");
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            s = Visible(s.Replace("\r", "").Split('\n')[0].Trim());
+            return s.Length > 60 ? s.Substring(0, 59).TrimEnd() + "…" : s;
+        }
+
         // Les "max" premieres lignes d'un texte, et le nombre de lignes au-dela (0 si tout tient).
         public static string[] Head(string text, int max, out int more)
         {
@@ -94,6 +135,7 @@ namespace ClaudeNotch
     class StateRecord
     {
         public string Harness = "claude", State, Dir = "", Proc, Transcript, Label, Code;
+        public string Title;   // titre fourni par l'outil (Antigravity) ; Claude Code : lu dans le transcript
         public int Pid;
         public DateTime? Start;
 
@@ -118,6 +160,8 @@ namespace ClaudeNotch
                 var proc = Json.Str(d, "proc");
                 r.Proc = proc != null && HarnessName.IsMatch(proc) ? proc : null;
                 r.Transcript = Json.Str(d, "transcript");
+                var title = Json.Str(d, "title");
+                r.Title = title == null ? null : Logic.Visible(title.Length > 60 ? title.Substring(0, 60) : title);
                 r.Label = Json.Str(d, "label");
                 r.Code = Json.Str(d, "code");
                 r.Start = Date(Json.Str(d, "start"));
@@ -141,6 +185,7 @@ namespace ClaudeNotch
             var d = new Dictionary<string, object> { { "v", 2 }, { "harness", Harness }, { "state", State }, { "dir", Dir ?? "" }, { "pid", Pid } };
             if (Proc != null) d["proc"] = Proc;
             if (!string.IsNullOrEmpty(Transcript)) d["transcript"] = Transcript;
+            if (!string.IsNullOrEmpty(Title)) d["title"] = Title;
             if (Label != null) d["label"] = Label;
             if (Code != null) d["code"] = Code;
             if (Start != null) d["start"] = Start.Value.ToString("o", CultureInfo.InvariantCulture);
