@@ -493,10 +493,16 @@ namespace ClaudeNotch
 
         // Rejoue la chaine d'empreintes sur tous les fichiers conserves. Renvoie null si
         // elle est intacte, sinon l'endroit de la premiere rupture.
+        // Les hooks ecrivent pendant la verification. L'empreinte du registre est donc lue AVANT le
+        // journal : le journal ne fait que grandir, elle doit designer l'une des lignes lues (les
+        // lignes ajoutees entre-temps viennent apres elle). Avant, lue apres, une ligne ajoutee
+        // entre les deux lectures ressemblait a une fin de journal supprimee.
         public static string Verify(string root, out int count)
         {
             count = 0;
-            string prevLine = null;
+            var head = LoadHead(root);
+            bool headSeen = false;
+            string prevSha = null;
             bool first = true;
             foreach (var f in Files(root))
             {
@@ -507,14 +513,14 @@ namespace ClaudeNotch
                     string prev = null;
                     try { prev = Json.Str(Json.Obj(Json.Parse(lines[i])), "prev"); } catch { }
                     // Le tout premier evenement conserve peut suivre un jour deja purge.
-                    bool ok = first ? prev != null : prev == Sha(prevLine);
+                    bool ok = first ? prev != null : prev == prevSha;
                     if (!ok) return Path.GetFileName(f) + ", ligne " + (i + 1);
-                    prevLine = lines[i];
+                    prevSha = Sha(lines[i]);
+                    if (prevSha == head) headSeen = true;
                     first = false;
                 }
             }
-            var head = LoadHead(root);
-            if (head != null && (prevLine == null || Sha(prevLine) != head))
+            if (head != null && !headSeen)
                 return "fin du journal : dernières lignes ou fichier du jour supprimés";
             return null;
         }

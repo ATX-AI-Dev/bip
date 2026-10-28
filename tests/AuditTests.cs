@@ -76,6 +76,12 @@ static class AuditTests
             Check("chaine intacte (5 evenements)", Audit.Verify(root, out n) == null && n == 5);
             var file = Directory.GetFiles(Path.Combine(root, "audit"))[0];
             var lines = File.ReadAllLines(file);
+            // Course : empreinte du registre lue juste avant que deux lignes s'ajoutent (hooks actifs).
+            using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Bip\Audit"))
+                key.SetValue(Audit.HeadName(root), Audit.Sha(lines[2]));
+            Check("empreinte un peu en retard sur le journal : intact", Audit.Verify(root, out n) == null && n == 5);
+            using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Bip\Audit"))
+                key.SetValue(Audit.HeadName(root), Audit.Sha(lines[4]));
             lines[2] = lines[2].Replace("echo 2", "echo 9");
             File.WriteAllLines(file, lines);
             Check("ligne modifiee detectee", Audit.Verify(root, out n) != null);
