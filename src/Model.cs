@@ -160,8 +160,14 @@ namespace ClaudeNotch
             {
                 var dir = Path.GetDirectoryName(path);
                 if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return "dossier introuvable : " + dir;
-                bool exists = File.Exists(path);
-                if (exists && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return "le fichier est un lien, rien n'est écrit";
+                if ((new DirectoryInfo(dir).Attributes & FileAttributes.ReparsePoint) != 0) return "le dossier est un lien, rien n'est écrit";
+                // Les attributs du chemin lui-meme, sans suivre un lien : un lien dont la cible n'existe pas encore
+                // (File.Exists faux) serait sinon suivi et sa cible creee.
+                FileAttributes attrs = 0;
+                bool present = true;
+                try { attrs = File.GetAttributes(path); } catch (FileNotFoundException) { present = false; }
+                if (present && (attrs & FileAttributes.ReparsePoint) != 0) return "le fichier est un lien, rien n'est écrit";
+                bool exists = present && File.Exists(path);
                 var text = (exists ? "" : Logic.InboxHeader.Replace("\n", Environment.NewLine)) + line + Environment.NewLine;
                 // Une derniere ligne sans fin de ligne (modifiee a la main) : la capture repart sur une ligne propre.
                 if (exists)

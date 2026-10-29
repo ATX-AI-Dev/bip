@@ -10,7 +10,7 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 - **Bilan du matin** dans le panneau déplié (5 h - 12 h) : ce qui s'est passé depuis la veille à 20 h (sessions, commandes, actions et refus des agents, alertes Logres) ; masquable jusqu'au lendemain ; recalculé toutes les 30 s au plus.
 - Les infos de Bip Connect sont inscrites au journal du jour (`info2` / `info3`) ; le journal se lit sur plusieurs jours (le récap d'un appel qui passe minuit garde ce qui précède, constat F7 de l'audit).
 - **Reporté** : musique en cours et pause pendant les appels. L'API des sessions média de Windows compile sans SDK mais n'a vu aucune session sur ce poste, même session connectée et depuis le contexte de l'Explorateur : essai avec une vraie source (Spotify, YouTube) à faire par Ludo.
-- 12 tests ajoutés (180 au total).
+- 19 tests ajoutés (187 au total), dont écriture de la capture et journal sur plusieurs jours (Model.cs testé avec un `Program` factice). Relecture Gemini : 7 constats corrigés (note qui partait dans une réponse « Autre… » à un agent, texte perdu au redessin ou en cas d'échec d'écriture, panneau bloqué ouvert, lien orphelin suivi, bilan non redessiné, tests manquants).
 
 ### Phase 2 « compagnon » : Antigravity
 

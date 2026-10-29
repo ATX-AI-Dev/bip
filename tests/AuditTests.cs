@@ -390,6 +390,32 @@ static class AuditTests
         Check("nuit calme : rien a dire", Logic.NightSummary(new[] { E("travail", "s", "") }, 0, 0).Count == 0);
         Check("une seule action, sans refus", Logic.NightSummary(new Tuple<DateTime, string, string, string>[0], 1, 0)[0] == "1 action d'agent");
 
+        Console.WriteLine("Phase 3 : ecriture de la capture et journal sur plusieurs jours (Model.cs)");
+        Directory.CreateDirectory(Program.Root);
+        try
+        {
+            var inbox = Path.Combine(Program.Root, "ideation", "inbox.md");
+            Check("dossier absent : rien n'est ecrit, rien n'est cree", Capture.Append(inbox, "- x") != null && !Directory.Exists(Path.GetDirectoryName(inbox)));
+            Directory.CreateDirectory(Path.GetDirectoryName(inbox));
+            Check("premiere capture : fichier cree", Capture.Append(inbox, "- 2026-10-29 10:12 · un") == null);
+            var t3 = File.ReadAllText(inbox);
+            Check("en-tete puis la ligne", t3.StartsWith("---") && t3.Contains("# Boite de capture") && t3.TrimEnd().EndsWith("· un"));
+            File.AppendAllText(inbox, "ligne ajoutee a la main sans fin de ligne");
+            Check("seconde capture", Capture.Append(inbox, "- 2026-10-29 10:13 · deux") == null);
+            var l3 = File.ReadAllLines(inbox);
+            Check("repart sur une ligne propre, en-tete non repete", l3.Last() == "- 2026-10-29 10:13 · deux" && l3.Count(l => l == "---") == 2);
+
+            var jdir = Path.Combine(Program.Root, "journal");
+            Directory.CreateDirectory(jdir);
+            var hier = new DateTime(2026, 10, 28);
+            File.WriteAllText(Path.Combine(jdir, "2026-10-28.log"), "19:00:00|termine|a|trop tot\n21:30:00|termine|b|hier soir\n");
+            File.WriteAllText(Path.Combine(jdir, "2026-10-29.log"), "03:00:00|info2|paperclip|Agent en erreur\n11:00:00|termine|c|trop tard\n");
+            var ev3 = Journal.Between(hier.AddHours(20), new DateTime(2026, 10, 29, 10, 0, 0));
+            Check("minuit franchi, bornes respectees", ev3.Count == 2 && ev3[0].Item4 == "hier soir" && ev3[1].Item3 == "paperclip");
+            Check("jour sans fichier : rien, sans erreur", Journal.Between(new DateTime(2026, 10, 20), new DateTime(2026, 10, 21)).Count == 0);
+        }
+        finally { try { Directory.Delete(Program.Root, true); } catch { } }
+
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
     }

@@ -299,31 +299,52 @@ namespace ClaudeNotch
         }
 
         // Deplie l'encoche avec un champ de saisie qui prend le clavier (seul autre cas que la reponse libre).
+        string _captureDraft = "";        // texte tape, garde quand le panneau se redessine ou se replie
+        string _captureError;             // dernier echec d'ecriture, montre sous le champ
+        DateTime _captureOpenedAt;        // le temps que la fenetre prenne le clavier, l'encoche reste depliee
+
         void OpenCapture()
         {
             if (_hiddenFullScreen) return;
             _captureOpen = true;
-            if (_form != Form.Expanded) Expand(); else Redraw();
+            _captureOpenedAt = DateTime.Now;
+            // Une reponse libre a une question d'agent peut avoir le clavier : il lui est retire, sinon la note
+            // partirait dans cette reponse (et le panneau, qui ne se redessine pas pendant une saisie, n'aurait pas de champ).
+            Keyboard.ClearFocus();
+            if (_form != Form.Expanded) Expand(); else { _panelSig = null; RenderPanel(false); }
             Dispatcher.BeginInvoke((Action)(() => { if (_captureBox != null) FocusBox(_captureBox); }), DispatcherPriority.Loaded);
         }
 
-        void CloseCapture()
+        // Ferme le champ ; "keepDraft" : repli sans validation (le texte reviendra au prochain Ctrl+Alt+B).
+        void CloseCapture(bool keepDraft)
         {
+            if (!_captureOpen) return;
             _captureOpen = false;
             _captureBox = null;
+            if (!keepDraft) { _captureDraft = ""; _captureError = null; }
             if (_activatable) SetActivatable(false);
-            Redraw();
+            if (_form == Form.Expanded) Redraw();
         }
 
         void SubmitCapture(string text)
         {
             var line = Logic.CaptureLine(text, DateTime.Now);
-            CloseCapture();
-            if (line == null) return;
+            if (line == null) { CloseCapture(false); return; }
             var err = Capture.Append(_cfg.CapturePath, line);
-            if (err != null) Program.Log("capture rapide : " + err);
+            if (err != null)
+            {
+                // Echec (fichier verrouille par Syncthing, chemin absent...) : le champ reste ouvert avec le texte et la raison.
+                Program.Log("capture rapide : " + err);
+                _captureDraft = text;
+                _captureError = "Non ajoutée : " + err;
+                _panelSig = null;
+                RenderPanel(false);
+                Dispatcher.BeginInvoke((Action)(() => { if (_captureBox != null) FocusBox(_captureBox); }), DispatcherPriority.Loaded);
+                return;
+            }
+            CloseCapture(false);
             // Le panneau se replie quand la souris n'y est pas ; le resultat s'annonce alors d'une ligne.
-            var msg = err == null ? "✓ Ajouté à " + System.IO.Path.GetFileName(_cfg.CapturePath) : "Capture non ajoutée : " + err;
+            var msg = "✓ Ajouté à " + System.IO.Path.GetFileName(_cfg.CapturePath);
             Announce(1, "capture", null, TimeSpan.FromSeconds(15), true, null, () => ShowMicroPeek(msg));
         }
 
@@ -336,16 +357,21 @@ namespace ClaudeNotch
             _captureBox = new TextBox
             {
                 FontSize = 12.5, Padding = new Thickness(8, 6, 8, 6), Background = Black, Foreground = Ink, CaretBrush = Ink, BorderBrush = Always,
-                TextWrapping = TextWrapping.Wrap, AcceptsReturn = false, MaxLength = 500
+                TextWrapping = TextWrapping.Wrap, AcceptsReturn = false, MaxLength = 500, Text = _captureDraft
             };
             var box = _captureBox;
+            box.CaretIndex = box.Text.Length;
             box.PreviewMouseLeftButtonDown += (s, e) => FocusBox(box);
+            // Le texte survit a un redessin du panneau (perte du clavier, nouvel etat d'un agent).
+            box.TextChanged += (s, e) => _captureDraft = box.Text;
             box.KeyDown += (s, e) =>
             {
                 if (e.Key == Key.Enter) { e.Handled = true; SubmitCapture(box.Text); }
-                else if (e.Key == Key.Escape) { e.Handled = true; CloseCapture(); }
+                else if (e.Key == Key.Escape) { e.Handled = true; CloseCapture(false); }
             };
             p.Children.Add(box);
+            if (_captureError != null)
+                p.Children.Add(new TextBlock { Text = _captureError, FontSize = 11.5, Foreground = WaitRed, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 4, 0, 0) });
             p.Children.Add(new TextBlock { Text = "Entrée : ajouter, horodaté · Échap : annuler", FontSize = 11, Foreground = Muted, Margin = new Thickness(4, 4, 0, 0) });
             return new Border { Background = Card, CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), Child = p };
         }
@@ -470,8 +496,10 @@ namespace ClaudeNotch
             }
 
             bool typing = IsActive && Keyboard.FocusedElement is TextBox;
-            // Capture rapide ouverte au clavier : reste depliee sans la souris, jusqu'a Entree ou Echap.
-            if (inside || typing || _captureOpen) { _leaveSince = null; return; }
+            // Capture rapide ouverte au clavier : reste depliee sans la souris tant qu'elle a le clavier (et le temps de le
+            // prendre) ; un clic dans une autre fenetre la replie, le texte tape est garde pour le prochain Ctrl+Alt+B.
+            bool capturing = _captureOpen && (IsActive || now - _captureOpenedAt < TimeSpan.FromSeconds(2));
+            if (inside || typing || capturing) { _leaveSince = null; return; }
             if (_leaveSince == null) _leaveSince = now;
             else if (now - _leaveSince.Value >= LEAVE_CLOSE) { _leaveSince = null; GoTo(RestForm()); }
         }
@@ -690,6 +718,8 @@ namespace ClaudeNotch
         {
             var from = _form;
             if (f == from && f != Form.Expanded) return;
+            // Replie avec une capture ouverte : le champ se ferme, le texte tape est garde.
+            if (from == Form.Expanded && f != Form.Expanded && _captureOpen) { _captureOpen = false; _captureBox = null; }
             _form = f;
             int token = ++_anim;
             UpdateDndTag();
@@ -1340,7 +1370,7 @@ namespace ClaudeNotch
                        + "|" + string.Join(",", _pending.Select(p => p.GetHashCode()))
                        + "|" + string.Join(",", _infos.Select(i => i.Msg.Key + i.At.Ticks))
                        + "|" + (_settingsOpen ? Quiet + ":" + _cfg.AutoDnd + ":" + _cfg.Flash + ":" + Rules.Created().Count : "")
-                       + "|" + _captureOpen + ":" + BriefVisible() + ":" + DateTime.Now.ToString("HH");
+                       + "|" + _captureOpen + ":" + BriefVisible() + ":" + _briefAt.Ticks + ":" + DateTime.Now.ToString("HH");
             if (sig == _panelSig && !opening) return;
             // Pendant une saisie, on ne reconstruit rien : le focus serait perdu.
             if (!opening && IsActive && Keyboard.FocusedElement is TextBox) return;
