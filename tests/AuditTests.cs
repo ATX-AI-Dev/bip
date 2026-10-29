@@ -368,6 +368,28 @@ static class AuditTests
         Check("titre garde dans le fichier d'etat, rendu visible", agyRec.Harness == "agy" && agyRec.Title == "Relis [U+202E] la branche");
         Check("commande Antigravity resumee", Audit.Summarize("run_command", Json.Obj(Json.Parse("{\"CommandLine\":\"dir /s\",\"WaitMsBeforeAsync\":5000}"))) == "dir /s");
 
+        Console.WriteLine("Phase 3 : capture rapide");
+        var at10 = new DateTime(2026, 10, 29, 10, 12, 0);
+        Check("ligne horodatee", Logic.CaptureLine("  idée : bip qui danse  ", at10) == "- 2026-10-29 10:12 · idée : bip qui danse");
+        Check("une seule ligne", Logic.CaptureLine("a\nb\r\nc\td", at10) == "- 2026-10-29 10:12 · a b  c d");
+        Check("vide : rien", Logic.CaptureLine("   ", at10) == null && Logic.CaptureLine(null, at10) == null);
+        Check("caractere invisible rendu visible", Logic.CaptureLine("x‮y", at10).EndsWith("x[U+202E]y"));
+        Check("500 caracteres au plus", Logic.CaptureLine(new string('z', 900), at10).Length == "- 2026-10-29 10:12 · ".Length + 500);
+        Check("en-tete au format des notes du vault", Logic.InboxHeader.StartsWith("---\nname: ideation-inbox\n") && Logic.InboxHeader.Contains("type: inbox"));
+
+        Console.WriteLine("Phase 3 : bilan du matin");
+        Check("nuit : depuis la veille a 20 h", Logic.NightStart(at10) == new DateTime(2026, 10, 28, 20, 0, 0));
+        Check("matin de 5 h a midi", Logic.IsMorning(at10) && !Logic.IsMorning(at10.Date.AddHours(4)) && !Logic.IsMorning(at10.Date.AddHours(12)));
+        Func<string, string, string, Tuple<DateTime, string, string, string>> E = (evt, src, name) => Tuple.Create(at10, evt, src, name);
+        var night = Logic.NightSummary(new[] {
+            E("termine", "s1", "Audit"), E("termine", "s2", "Veille"), E("travail", "s1", ""), E("commande-ok", "run-1", "npm test"),
+            E("commande-ko", "run-2", "build"), E("info3", "logres", "Quota à 80 %"), E("info2", "paperclip", "Agent Perceval en erreur"),
+            E("info2", "hermes", "Moteur Hermes indisponible") }, 42, 1);
+        Check("bilan : sessions, commandes, actions", night.Count == 2 && night[0] == "2 sessions ont fini · 2 commandes (1 en échec) · 42 actions d'agents · 1 refus");
+        Check("bilan : alertes, dont importantes et la derniere", night[1] == "3 alertes reçues · 2 importantes, dernière : Moteur Hermes indisponible");
+        Check("nuit calme : rien a dire", Logic.NightSummary(new[] { E("travail", "s", "") }, 0, 0).Count == 0);
+        Check("une seule action, sans refus", Logic.NightSummary(new Tuple<DateTime, string, string, string>[0], 1, 0)[0] == "1 action d'agent");
+
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
     }

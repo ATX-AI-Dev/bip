@@ -276,6 +276,126 @@ namespace ClaudeNotch
             SetActivatable(false);
             SetClickThrough(true);
             Place();
+            // Capture rapide : raccourci global Ctrl+Alt+B (refuse si une autre application l'a deja pris).
+            HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
+            _captureHotkey = RegisterHotKey(_hwnd, HOTKEY_CAPTURE, MOD_ALT | MOD_CONTROL | MOD_NOREPEAT, 0x42 /* B */);
+            if (!_captureHotkey) Program.Log("capture rapide : Ctrl+Alt+B déjà pris par une autre application");
+        }
+
+        // ------------------------------------------------------------ capture rapide (phase 3)
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
+        const int HOTKEY_CAPTURE = 0xB1, WM_HOTKEY = 0x0312;
+        const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_NOREPEAT = 0x4000;
+
+        bool _captureHotkey, _captureOpen;
+        TextBox _captureBox;
+
+        IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_CAPTURE) { handled = true; OpenCapture(); }
+            return IntPtr.Zero;
+        }
+
+        // Deplie l'encoche avec un champ de saisie qui prend le clavier (seul autre cas que la reponse libre).
+        void OpenCapture()
+        {
+            if (_hiddenFullScreen) return;
+            _captureOpen = true;
+            if (_form != Form.Expanded) Expand(); else Redraw();
+            Dispatcher.BeginInvoke((Action)(() => { if (_captureBox != null) FocusBox(_captureBox); }), DispatcherPriority.Loaded);
+        }
+
+        void CloseCapture()
+        {
+            _captureOpen = false;
+            _captureBox = null;
+            if (_activatable) SetActivatable(false);
+            Redraw();
+        }
+
+        void SubmitCapture(string text)
+        {
+            var line = Logic.CaptureLine(text, DateTime.Now);
+            CloseCapture();
+            if (line == null) return;
+            var err = Capture.Append(_cfg.CapturePath, line);
+            if (err != null) Program.Log("capture rapide : " + err);
+            // Le panneau se replie quand la souris n'y est pas ; le resultat s'annonce alors d'une ligne.
+            var msg = err == null ? "✓ Ajouté à " + System.IO.Path.GetFileName(_cfg.CapturePath) : "Capture non ajoutée : " + err;
+            Announce(1, "capture", null, TimeSpan.FromSeconds(15), true, null, () => ShowMicroPeek(msg));
+        }
+
+        FrameworkElement CaptureBox()
+        {
+            var p = new StackPanel { Background = Brushes.Transparent, Margin = new Thickness(0, 0, 0, 10) };
+            p.MouseLeftButtonUp += (s, e) => e.Handled = true;   // encoche vide : pas d'ouverture de Claude ici
+            p.Children.Add(new TextBlock { Text = "Capture rapide → " + System.IO.Path.GetFileName(_cfg.CapturePath), FontSize = 12.5, FontWeight = FontWeights.SemiBold,
+                                           Foreground = Ink, Margin = new Thickness(4, 0, 0, 6) });
+            _captureBox = new TextBox
+            {
+                FontSize = 12.5, Padding = new Thickness(8, 6, 8, 6), Background = Black, Foreground = Ink, CaretBrush = Ink, BorderBrush = Always,
+                TextWrapping = TextWrapping.Wrap, AcceptsReturn = false, MaxLength = 500
+            };
+            var box = _captureBox;
+            box.PreviewMouseLeftButtonDown += (s, e) => FocusBox(box);
+            box.KeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Enter) { e.Handled = true; SubmitCapture(box.Text); }
+                else if (e.Key == Key.Escape) { e.Handled = true; CloseCapture(); }
+            };
+            p.Children.Add(box);
+            p.Children.Add(new TextBlock { Text = "Entrée : ajouter, horodaté · Échap : annuler", FontSize = 11, Foreground = Muted, Margin = new Thickness(4, 4, 0, 0) });
+            return new Border { Background = Card, CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), Child = p };
+        }
+
+        // ------------------------------------------------------------ bilan du matin (phase 3)
+
+        bool BriefVisible()
+        {
+            var now = DateTime.Now;
+            return Logic.IsMorning(now) && _cfg.BriefHiddenOn != now.ToString("yyyy-MM-dd") && BriefLines().Count > 0;
+        }
+
+        List<string> _brief;
+        DateTime _briefAt = DateTime.MinValue;
+
+        // Ce qui s'est passe depuis la veille a 20 h : journal du jour (sessions, commandes, infos) et journal d'audit.
+        // Recalcule toutes les 30 s au plus : le panneau deplie se rafraichit toutes les 500 ms.
+        List<string> BriefLines()
+        {
+            var now = DateTime.Now;
+            if (_brief != null && now - _briefAt < TimeSpan.FromSeconds(30)) return _brief;
+            _briefAt = now;
+            try
+            {
+                var from = Logic.NightStart(now);
+                var actions = Audit.Rows(Program.Root, 2).Where(r => r.T >= from && !r.Hidden && !r.Rule).ToList();
+                _brief = Logic.NightSummary(Journal.Between(from, now), actions.Count, actions.Count(r => r.Refused));
+            }
+            catch (Exception ex) { Program.Log("bilan du matin : " + ex.Message); _brief = new List<string>(); }
+            return _brief;
+        }
+
+        FrameworkElement BriefBlock()
+        {
+            var g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock { Text = "Pendant la nuit", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Ink, Margin = new Thickness(0, 0, 0, 2) });
+            foreach (var l in BriefLines())
+                text.Children.Add(new TextBlock { Text = Safe(l), FontSize = 12, Foreground = Muted, TextWrapping = TextWrapping.Wrap });
+            g.Children.Add(text);
+            var x = new TextBlock { Text = "✕", FontSize = 12, Foreground = Muted, Cursor = Cursors.Hand, ToolTip = "Masquer jusqu'à demain",
+                                    VerticalAlignment = VerticalAlignment.Top, Padding = new Thickness(8, 0, 2, 4), Background = Brushes.Transparent };
+            x.MouseLeftButtonUp += (s, e) => { e.Handled = true; _cfg.BriefHiddenOn = DateTime.Now.ToString("yyyy-MM-dd"); _cfg.Save(); Redraw(); };
+            Grid.SetColumn(x, 1);
+            g.Children.Add(x);
+            var b = new Border { Background = Card, CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 10, 12, 10), Margin = new Thickness(0, 0, 0, 10), Child = g };
+            b.MouseLeftButtonUp += (s, e) => e.Handled = true;   // encoche vide : pas d'ouverture de Claude ici
+            return b;
         }
 
         void Place()
@@ -350,7 +470,8 @@ namespace ClaudeNotch
             }
 
             bool typing = IsActive && Keyboard.FocusedElement is TextBox;
-            if (inside || typing) { _leaveSince = null; return; }
+            // Capture rapide ouverte au clavier : reste depliee sans la souris, jusqu'a Entree ou Echap.
+            if (inside || typing || _captureOpen) { _leaveSince = null; return; }
             if (_leaveSince == null) _leaveSince = now;
             else if (now - _leaveSince.Value >= LEAVE_CLOSE) { _leaveSince = null; GoTo(RestForm()); }
         }
@@ -863,6 +984,8 @@ namespace ClaudeNotch
             _infos.RemoveAll(x => x.Msg.Key == m.Key);
             var item = new InfoItem { Msg = m, At = now, Until = now + m.Ttl };
             _infos.Insert(0, item);
+            // Au journal du jour aussi : le bilan du matin compte les alertes de la nuit, expirees depuis.
+            Journal.Add("info" + m.Priority, m.Source, m.Title);
             if (_infos.Count > INFO_MAX) _infos.RemoveRange(INFO_MAX, _infos.Count - INFO_MAX);
             // Annonce plafonnee par source (Attention) ; plus d'objet si l'info a ete retiree ou a expire.
             Announce(m.Priority, "info:" + m.Key, "connect:" + m.Source, m.Ttl, false,
@@ -1216,7 +1339,8 @@ namespace ClaudeNotch
                                                          + string.Join(",", VisibleAgents(v.S).Select(a => a.Tuid + (a.End != null ? "+" : "")))))
                        + "|" + string.Join(",", _pending.Select(p => p.GetHashCode()))
                        + "|" + string.Join(",", _infos.Select(i => i.Msg.Key + i.At.Ticks))
-                       + "|" + (_settingsOpen ? Quiet + ":" + _cfg.AutoDnd + ":" + _cfg.Flash + ":" + Rules.Created().Count : "");
+                       + "|" + (_settingsOpen ? Quiet + ":" + _cfg.AutoDnd + ":" + _cfg.Flash + ":" + Rules.Created().Count : "")
+                       + "|" + _captureOpen + ":" + BriefVisible() + ":" + DateTime.Now.ToString("HH");
             if (sig == _panelSig && !opening) return;
             // Pendant une saisie, on ne reconstruit rien : le focus serait perdu.
             if (!opening && IsActive && Keyboard.FocusedElement is TextBox) return;
@@ -1224,6 +1348,9 @@ namespace ClaudeNotch
 
             _tickers.Clear();
             _content.Children.Clear();
+
+            // Capture rapide ouverte (Ctrl+Alt+B) : tout en haut.
+            if (_captureOpen) _content.Children.Add(CaptureBox());
 
             // Les demandes d'abord, en grand ; puis les sessions, en attente d'abord.
             foreach (var v in _views.Where(v => v.Pending.Count > 0).OrderBy(v => v.Since))
@@ -1237,6 +1364,10 @@ namespace ClaudeNotch
                     _tickers.Add(() => since.Text = "attend depuis " + Fmt(DateTime.Now - pp.Since) + " · repart vers Claude dans "
                                                     + Fmt(pp.Since.AddMinutes(_cfg.ReplyMinutes) - DateTime.Now));
                 }
+
+            // Bilan du matin : apres les demandes (elles passent toujours avant), avant les sessions.
+            var brief = BriefVisible() ? BriefBlock() : null;
+            if (brief != null) _content.Children.Add(brief);
 
             var rows = _views.Where(v => v.Pending.Count == 0).OrderBy(v => v.State == St.Waiting ? 0 : 1).ThenBy(v => v.S.Order).ToList();
             for (int i = 0; i < rows.Count; i++) _content.Children.Add(Row(rows[i], i > 0));
@@ -1339,6 +1470,10 @@ namespace ClaudeNotch
                 _cfg.Save();
                 Redraw();
             }));
+
+            p.Children.Add(Link("Capture rapide : Ctrl+Alt+B",
+                                _captureHotkey ? "une ligne horodatée dans " + _cfg.CapturePath : "raccourci pris par une autre application ; clic pour capturer quand même",
+                                "↗", OpenCapture));
 
             p.Children.Add(Section("Traçabilité"));
             p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () =>

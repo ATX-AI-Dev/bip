@@ -157,7 +157,19 @@ puis reste dans la section « Infos » du panneau jusqu'à sa durée (`--duree`,
 de 10 s à 1 h) ou jusqu'à ce que tu la retires. Ce canal est **en lecture seule** : séparé de
 celui des demandes, il ne peut ni répondre à une permission ni changer l'état d'une session.
 Priorité 2 ou 3 seulement, 10 messages par source toutes les 10 min, une entrouverture par source
-toutes les 2 min. Codes de retour : 0 acceptée, 1 refusée (raison affichée), 3 encoche absente.
+toutes les 2 min. Codes de retour : 0 acceptée, 1 refusée (raison affichée), 3 encoche absente ou qui
+ne répond pas en 3 s.
+
+### Capture rapide et bilan du matin
+
+**`Ctrl+Alt+B`**, où que tu sois : l'encoche se déplie avec un champ de saisie. `Entrée` ajoute une ligne
+horodatée à la boîte de capture du vault (`D:\Obsidian\ideation\inbox.md`, créée avec son en-tête à la
+première capture, jamais le dossier ; réglable par `capture=` dans `config.txt`), `Échap` annule. Si une
+autre application a déjà pris le raccourci, les réglages (☰) le disent et ouvrent la capture d'un clic.
+
+**Bilan du matin** : de 5 h à midi, le panneau déplié commence par « Pendant la nuit » (depuis la veille à
+20 h) : sessions finies, commandes, actions des agents et refus (journal d'audit), alertes reçues de Logres
+et la dernière importante. Une croix le masque jusqu'au lendemain. Il ne s'entrouvre jamais de lui-même.
 
 ### Antigravity
 

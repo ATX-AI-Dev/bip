@@ -115,6 +115,60 @@ namespace ClaudeNotch
             return s.Length > 60 ? s.Substring(0, 59).TrimEnd() + "…" : s;
         }
 
+        // ------------------------------------------------------------ capture rapide (phase 3)
+
+        // En-tete d'ideation/inbox.md quand Bip le cree (format des notes du vault). Circuit : vault ideation/00-README.md.
+        public const string InboxHeader =
+            "---\n" +
+            "name: ideation-inbox\n" +
+            "description: \"Captures brutes d'idees de Ludo (Bip, Telegram...), a trier en seance d'ideation.\"\n" +
+            "metadata:\n" +
+            "  type: inbox\n" +
+            "---\n\n" +
+            "# Boite de capture\n\n";
+
+        // Une capture : une ligne de liste horodatee, sur une seule ligne, caracteres invisibles rendus visibles, 500 caracteres
+        // au plus. Null si le texte est vide.
+        public static string CaptureLine(string text, DateTime now)
+        {
+            var t = Visible((text ?? "").Replace("\r", " ").Replace("\n", " ").Replace("\t", " ").Trim());
+            if (t.Length == 0) return null;
+            if (t.Length > 500) t = t.Substring(0, 499) + "…";
+            return "- " + now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " · " + t;
+        }
+
+        // ------------------------------------------------------------ bilan du matin (phase 3)
+
+        // Debut de "la nuit" pour le bilan : la veille a 20 h.
+        public static DateTime NightStart(DateTime now) { return now.Date.AddHours(-4); }
+
+        // Le bilan s'affiche de 5 h a midi.
+        public static bool IsMorning(DateTime now) { return now.Hour >= 5 && now.Hour < 12; }
+
+        // Lignes du bilan d'apres les evenements du journal depuis le debut de la nuit (heure, evenement, source, nom) :
+        // sessions finies, commandes, actions des agents (journal d'audit), alertes de Logres (info2 = importante). Vide si rien.
+        public static List<string> NightSummary(IEnumerable<Tuple<DateTime, string, string, string>> events, int agentActions, int refusals)
+        {
+            var ev = events.ToList();
+            var lines = new List<string>();
+            var parts = new List<string>();
+            int done = ev.Count(e => e.Item2 == "termine");
+            int ok = ev.Count(e => e.Item2 == "commande-ok"), ko = ev.Count(e => e.Item2 == "commande-ko");
+            if (done > 0) parts.Add(done + (done > 1 ? " sessions ont fini" : " session a fini"));
+            if (ok + ko > 0) parts.Add((ok + ko) + ((ok + ko) > 1 ? " commandes" : " commande") + (ko > 0 ? " (" + ko + " en échec)" : ""));
+            if (agentActions > 0) parts.Add(agentActions + (agentActions > 1 ? " actions d'agents" : " action d'agent") + (refusals > 0 ? " · " + refusals + " refus" : ""));
+            if (parts.Count > 0) lines.Add(string.Join(" · ", parts));
+            var important = ev.Where(e => e.Item2 == "info2").ToList();
+            int infos = ev.Count(e => e.Item2 == "info2" || e.Item2 == "info3");
+            if (infos > 0)
+            {
+                var l = infos + (infos > 1 ? " alertes reçues" : " alerte reçue");
+                if (important.Count > 0) l += " · " + important.Count + (important.Count > 1 ? " importantes" : " importante") + ", dernière : " + important.Last().Item4;
+                lines.Add(l);
+            }
+            return lines;
+        }
+
         // Les "max" premieres lignes d'un texte, et le nombre de lignes au-dela (0 si tout tient).
         public static string[] Head(string text, int max, out int more)
         {

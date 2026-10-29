@@ -106,6 +106,9 @@ namespace ClaudeNotch
         // n'attend plus jusqu'au filet d'une heure du hook si l'encoche n'est pas vue.
         public static readonly int[] ReplyChoices = { 5, 10, 30, 60 };
         public int ReplyMinutes = 10;
+        // Phase 3 : fichier de la capture rapide (Ctrl+Alt+B), et jour ou le bilan du matin a ete masque.
+        public string CapturePath = @"D:\Obsidian\ideation\inbox.md";
+        public string BriefHiddenOn = "";
 
         public Config(string path)
         {
@@ -122,6 +125,8 @@ namespace ClaudeNotch
                     else if (k == "dnd") { long t; if (long.TryParse(v, out t)) DndUntil = new DateTime(t); }
                     else if (k == "autodnd") AutoDnd = v != "0";
                     else if (k == "reply") { int m; if (int.TryParse(v, out m) && ReplyChoices.Contains(m)) ReplyMinutes = m; }
+                    else if (k == "capture" && v.Length > 0) CapturePath = v;
+                    else if (k == "brief") BriefHiddenOn = v;
                 }
             }
             catch { }
@@ -134,9 +139,38 @@ namespace ClaudeNotch
                 File.WriteAllText(_path, "flash=" + (Flash ? "1" : "0") + Environment.NewLine +
                                          "dnd=" + DndUntil.Ticks + Environment.NewLine +
                                          "autodnd=" + (AutoDnd ? "1" : "0") + Environment.NewLine +
-                                         "reply=" + ReplyMinutes + Environment.NewLine);
+                                         "reply=" + ReplyMinutes + Environment.NewLine +
+                                         "capture=" + CapturePath + Environment.NewLine +
+                                         "brief=" + BriefHiddenOn + Environment.NewLine);
             }
             catch { }
+        }
+    }
+
+    // ------------------------------------------------------------ capture rapide (phase 3)
+
+    // Ajoute une ligne a la boite de capture du vault (copie locale synchronisee par Syncthing). Cree le fichier avec
+    // son en-tete s'il manque, jamais le dossier (vault absent : rien n'est ecrit) ; refuse un fichier qui est un lien.
+    static class Capture
+    {
+        // Null si la ligne est ecrite, sinon la raison de l'echec.
+        public static string Append(string path, string line)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return "dossier introuvable : " + dir;
+                bool exists = File.Exists(path);
+                if (exists && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) return "le fichier est un lien, rien n'est écrit";
+                var text = (exists ? "" : Logic.InboxHeader.Replace("\n", Environment.NewLine)) + line + Environment.NewLine;
+                // Une derniere ligne sans fin de ligne (modifiee a la main) : la capture repart sur une ligne propre.
+                if (exists)
+                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        if (fs.Length > 0) { fs.Seek(-1, SeekOrigin.End); if (fs.ReadByte() != '\n') text = Environment.NewLine + text; }
+                File.AppendAllText(path, text, new UTF8Encoding(false));
+                return null;
+            }
+            catch (Exception ex) { return ex.Message; }
         }
     }
 
@@ -151,7 +185,8 @@ namespace ClaudeNotch
 
     // Un fichier par jour (journal\AAAA-MM-JJ.log), garde 7 jours. Lignes
     // "HH:mm:ss|evenement|session|nom" ; evenements : travail, pause, termine, reponse,
-    // commande-ok, commande-ko (commandes suivies par bip run).
+    // commande-ok, commande-ko (commandes suivies par bip run), info2 / info3 (info de Bip
+    // Connect et sa priorite ; session = source, nom = titre).
     static class Journal
     {
         static string Dir { get { return Path.Combine(Program.Root, "journal"); } }
@@ -178,22 +213,33 @@ namespace ClaudeNotch
             catch { }
         }
 
-        // Evenements du jour posterieurs a "from" : (heure, evenement, nom).
-        public static List<Tuple<DateTime, string, string>> Since(DateTime from)
+        // Evenements posterieurs a "from", sur plusieurs jours (fichier de chaque jour) : (heure, evenement, session, nom).
+        // Sert au bilan du matin (depuis la veille a 20 h) et au recap d'un appel qui passe minuit.
+        public static List<Tuple<DateTime, string, string, string>> Between(DateTime from, DateTime to)
         {
-            var list = new List<Tuple<DateTime, string, string>>();
-            string[] lines;
-            try { lines = File.ReadAllLines(FileOf(DateTime.Now), Encoding.UTF8); }
-            catch { return list; }
-            foreach (var l in lines)
+            var list = new List<Tuple<DateTime, string, string, string>>();
+            for (var day = from.Date; day <= to.Date; day = day.AddDays(1))
             {
-                var p = l.Split(new[] { '|' }, 4);
-                DateTime t;
-                if (p.Length < 4 || !DateTime.TryParseExact(p[0], "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) continue;
-                var at = DateTime.Today + t.TimeOfDay;
-                if (at >= from.AddSeconds(-1)) list.Add(Tuple.Create(at, p[1], p[3]));
+                string[] lines;
+                try { lines = File.ReadAllLines(FileOf(day), Encoding.UTF8); }
+                catch { continue; }
+                foreach (var l in lines)
+                {
+                    var p = l.Split(new[] { '|' }, 4);
+                    DateTime t;
+                    if (p.Length < 4 || !DateTime.TryParseExact(p[0], "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) continue;
+                    var at = day + t.TimeOfDay;
+                    if (at >= from.AddSeconds(-1) && at <= to) list.Add(Tuple.Create(at, p[1], p[2], p[3]));
+                }
             }
             return list;
+        }
+
+        // Evenements posterieurs a "from" : (heure, evenement, nom).
+        public static List<Tuple<DateTime, string, string>> Since(DateTime from)
+        {
+            // Plusieurs jours : un appel commence avant minuit garde ce qui s'est passe avant (constat F7 de l'audit).
+            return Between(from, DateTime.Now).Select(e => Tuple.Create(e.Item1, e.Item2, e.Item4)).ToList();
         }
 
         public static DayStats Today()
