@@ -322,6 +322,9 @@ namespace ClaudeNotch
             _captureOpen = false;
             _captureBox = null;
             if (!keepDraft) { _captureDraft = ""; _captureError = null; }
+            // Le champ a le clavier : sans ce retrait, le panneau refuserait de se redessiner (saisie en cours) et le
+            // champ resterait affiche.
+            Keyboard.ClearFocus();
             if (_activatable) SetActivatable(false);
             if (_form == Form.Expanded) Redraw();
         }
@@ -337,6 +340,7 @@ namespace ClaudeNotch
                 Program.Log("capture rapide : " + err);
                 _captureDraft = text;
                 _captureError = "Non ajoutée : " + err;
+                Keyboard.ClearFocus();   // sinon le panneau ne se redessine pas et l'erreur ne s'affiche pas
                 _panelSig = null;
                 RenderPanel(false);
                 Dispatcher.BeginInvoke((Action)(() => { if (_captureBox != null) FocusBox(_captureBox); }), DispatcherPriority.Loaded);
