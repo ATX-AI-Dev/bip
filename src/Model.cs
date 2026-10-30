@@ -110,6 +110,7 @@ namespace ClaudeNotch
         public string CapturePath = @"D:\Obsidian\ideation\inbox.md";
         public string BriefHiddenOn = "";
         public bool PauseMusic = true;   // musique en pause pendant les appels (reprise a la fin)
+        public bool AgendaDnd = false;   // phase 4 : "ne pas deranger" jusqu'a la fin d'une reunion de l'agenda (desactive par defaut)
 
         public Config(string path)
         {
@@ -129,6 +130,7 @@ namespace ClaudeNotch
                     else if (k == "capture" && v.Length > 0) CapturePath = v;
                     else if (k == "brief") BriefHiddenOn = v;
                     else if (k == "music") PauseMusic = v != "0";
+                    else if (k == "agendadnd") AgendaDnd = v == "1";
                 }
             }
             catch { }
@@ -144,7 +146,8 @@ namespace ClaudeNotch
                                          "reply=" + ReplyMinutes + Environment.NewLine +
                                          "capture=" + CapturePath + Environment.NewLine +
                                          "brief=" + BriefHiddenOn + Environment.NewLine +
-                                         "music=" + (PauseMusic ? "1" : "0") + Environment.NewLine);
+                                         "music=" + (PauseMusic ? "1" : "0") + Environment.NewLine +
+                                         "agendadnd=" + (AgendaDnd ? "1" : "0") + Environment.NewLine);
             }
             catch { }
         }

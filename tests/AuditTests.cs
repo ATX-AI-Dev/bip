@@ -390,6 +390,54 @@ static class AuditTests
         Check("nuit calme : rien a dire", Logic.NightSummary(new[] { E("travail", "s", "") }, 0, 0).Count == 0);
         Check("une seule action, sans refus", Logic.NightSummary(new Tuple<DateTime, string, string, string>[0], 1, 0)[0] == "1 action d'agent");
 
+        Console.WriteLine("Phase 4 : agenda recu de Logres (contrat docs/CONTRAT-BIP-AGENDA.md)");
+        Func<string, object> J = s => Json.Parse(s);
+        string ev1 = "{\"agenda\":\"Pro\",\"titre\":\"Point hebdo\",\"debut\":\"2026-11-02T08:00:00.000Z\",\"fin\":\"2026-11-02T08:30:00.000Z\",\"journee\":false,\"lien\":\"https://teams.microsoft.com/l/meetup-join/abc\"}";
+        string ev2 = "{\"agenda\":\"Google\",\"titre\":\"Toussaint\",\"debut\":\"2026-11-01\",\"fin\":\"2026-11-02\",\"journee\":true,\"lien\":null}";
+        Func<string, string, string> AG = (evs, errs) => "{\"empreinte\":\"0123456789abcdef\",\"luA\":\"2026-11-02T07:50:00.000Z\",\"evenements\":[" + evs + "],\"erreurs\":[" + errs + "]}";
+        var agd = AgendaLogic.Parse(J(AG(ev1 + "," + ev2, "{\"agenda\":\"Perso\",\"erreur\":\"agenda indisponible (code 403)\",\"depuis\":\"2026-11-02T07:00:00.000Z\"}")));
+        Check("agenda : lu, trie, heures UTC converties en heure locale", agd != null && agd.Meetings.Count == 2 && agd.Meetings[0].Title == "Toussaint"
+              && agd.Meetings[1].Start == new DateTime(2026, 11, 2, 8, 0, 0, DateTimeKind.Utc).ToLocalTime() && agd.Issues.Count == 1 && agd.Issues[0].Agenda == "Perso");
+        Check("agenda : journee entiere a minuit local, fin exclue", agd != null && agd.Meetings[0].AllDay && agd.Meetings[0].Start == new DateTime(2026, 11, 1) && agd.Meetings[0].End == new DateTime(2026, 11, 2));
+        Check("agenda : champ en trop ou manquant rejete en entier",
+              AgendaLogic.Parse(J(AG(ev1.Replace("\"lien\"", "\"lieu\":\"Salle\",\"lien\""), ""))) == null
+              && AgendaLogic.Parse(J(AG(ev1.Replace(",\"journee\":false", ""), ""))) == null
+              && AgendaLogic.Parse(J("{\"empreinte\":\"0123456789abcdef\",\"luA\":null,\"evenements\":[],\"erreurs\":[],\"adresse\":\"x\"}")) == null);
+        Check("agenda : lien hors Teams, Meet, Zoom ou non https rejete",
+              AgendaLogic.Parse(J(AG(ev1.Replace("https://teams.microsoft.com", "https://evil.example"), ""))) == null
+              && AgendaLogic.Parse(J(AG(ev1.Replace("https://teams.microsoft.com", "http://teams.microsoft.com"), ""))) == null
+              && AgendaLogic.Parse(J(AG(ev1.Replace("https://teams.microsoft.com", "https://teams.microsoft.com.evil.example"), ""))) == null);
+        Check("agenda : empreinte, dates et titre bornes",
+              AgendaLogic.Parse(J(AG(ev1, "").Replace("0123456789abcdef", "XYZ"))) == null
+              && AgendaLogic.Parse(J(AG(ev1.Replace("2026-11-02T08:30:00.000Z", "2026-11-02 08:30"), ""))) == null
+              && AgendaLogic.Parse(J(AG(ev1.Replace("2026-11-02T08:30:00.000Z", "2026-11-01T08:30:00.000Z"), ""))) == null
+              && AgendaLogic.Parse(J(AG(ev1.Replace("Point hebdo", new string('x', 121)), ""))) == null);
+        Check("agenda : vide accepte (aucun agenda declare)", AgendaLogic.Parse(J("{\"empreinte\":\"0123456789abcdef\",\"luA\":null,\"evenements\":[],\"erreurs\":[]}")) != null);
+        Check("lien : Meet et sous-domaine Zoom acceptes ; identifiants, port refuses",
+              AgendaLogic.JoinAllowed("https://meet.google.com/abc") && AgendaLogic.JoinAllowed("https://us02web.zoom.us/j/1")
+              && !AgendaLogic.JoinAllowed("https://u:p@meet.google.com/x") && !AgendaLogic.JoinAllowed("https://meet.google.com:8443/x") && !AgendaLogic.JoinAllowed(null));
+
+        var day = new DateTime(2026, 11, 2);
+        var ms = new List<Meeting> {
+            new Meeting { Agenda = "Pro", Title = "Point", Start = day.AddHours(9), End = day.AddHours(9.5) },
+            new Meeting { Agenda = "Pro", Title = "Revue", Start = day.AddHours(14), End = day.AddHours(15) },
+            new Meeting { Agenda = "Google", Title = "Demain", Start = day.AddDays(1).AddHours(8), End = day.AddDays(1).AddHours(9) },
+            new Meeting { Agenda = "Google", Title = "Toussaint", Start = day.AddDays(-1), End = day, AllDay = true },
+            new Meeting { Agenda = "Google", Title = "Conges", Start = day, End = day.AddDays(3), AllDay = true } };
+        Check("prochaine : celle du jour dans les 2 h, en cours d'abord, jamais une journee entiere",
+              AgendaLogic.Next(ms, day.AddHours(7.5), TimeSpan.FromHours(2)).Title == "Point"
+              && AgendaLogic.Next(ms, day.AddHours(9.25), TimeSpan.FromHours(2)).Title == "Point"
+              && AgendaLogic.Next(ms, day.AddHours(10), TimeSpan.FromHours(2)) == null
+              && AgendaLogic.Next(ms, day.AddHours(23), TimeSpan.FromHours(10)) == null);
+        Check("libelle : heure ou en cours", AgendaLogic.Label(ms[1], day.AddHours(13)) == "14:00 Revue" && AgendaLogic.Label(ms[1], day.AddHours(14.5)) == "en cours · Revue");
+        Check("en cours : bornes exactes", AgendaLogic.Current(ms, day.AddHours(9)) == ms[0] && AgendaLogic.Current(ms, day.AddHours(9.5)) == null);
+        var of = AgendaLogic.OfDay(ms, day.AddHours(12));
+        Check("reunions du jour : journees entieres d'abord, fin exclue", of.Count == 3 && of[0].Title == "Conges" && of[1].Title == "Point" && of[2].Title == "Revue");
+        Check("ligne du panneau", AgendaLogic.Line(ms[0]) == "09:00–09:30  Point · Pro" && AgendaLogic.Line(ms[4]) == "journée  Conges · Google");
+        var st = AgendaLogic.Status(agd, day.AddHours(8), day.AddHours(9));
+        Check("etat : perime apres 30 min sans nouvelles, erreurs par agenda", st[0].StartsWith("pas de nouvelles de Logres depuis 08:00")
+              && st.Any(l => l.StartsWith("Perso : agenda indisponible (code 403) depuis")) && AgendaLogic.Status(null, day, day)[0] == "aucun agenda reçu de Logres");
+
         Console.WriteLine("Phase 3 : detail du bilan et musique en cours");
         var det = Logic.NightDetails(new[] {
             Tuple.Create(at10.AddHours(-8), "info2", "paperclip", "Agent Perceval en erreur"),

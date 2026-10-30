@@ -420,4 +420,157 @@ namespace ClaudeNotch
 
         static string Clip(string s, int max) { return s.Length > max ? s.Substring(0, max - 1) + "…" : s; }
     }
+
+    // ------------------------------------------------------------ agenda (phase 4, contrat Logres docs/CONTRAT-BIP-AGENDA.md)
+
+    // Une reunion telle que Logres la transmet : heures locales (converties de l'UTC), journee entiere a minuit local, fin exclue.
+    class Meeting
+    {
+        public string Agenda, Title, Join;
+        public DateTime Start, End;
+        public bool AllDay;
+        public string Key { get { return Agenda + "|" + Start.Ticks + "|" + Title; } }
+    }
+
+    class AgendaIssue { public string Agenda, Error; public DateTime Since; }
+
+    class AgendaData
+    {
+        public string Print;
+        public DateTime? ReadAt;
+        public List<Meeting> Meetings = new List<Meeting>();
+        public List<AgendaIssue> Issues = new List<AgendaIssue>();
+    }
+
+    static class AgendaLogic
+    {
+        public const int MAX_EVENTS = 60, MAX_ISSUES = 10;
+        public static readonly TimeSpan STALE = TimeSpan.FromMinutes(30);
+
+        // Revalide ce que Logres envoie (l'API l'a deja fait : on ne fait confiance a aucun maillon). Un seul champ hors contrat,
+        // une valeur hors bornes : tout est rejete (null), comme cote API.
+        public static AgendaData Parse(object o)
+        {
+            var d = Json.Obj(o);
+            if (d == null || !OnlyKeys(d, "empreinte", "luA", "evenements", "erreurs")) return null;
+            var print = Json.Get(d, "empreinte") as string;
+            if (print == null || !Regex.IsMatch(print, "^[0-9a-f]{16}$")) return null;
+            var a = new AgendaData { Print = print };
+            var luA = Json.Get(d, "luA");
+            if (luA != null)
+            {
+                DateTime t;
+                if (!(luA is string) || !TryTime((string)luA, false, out t)) return null;
+                a.ReadAt = t;
+            }
+            var evs = Json.Arr(Json.Get(d, "evenements"));
+            var errs = Json.Arr(Json.Get(d, "erreurs"));
+            if (evs == null || errs == null || evs.Length > MAX_EVENTS || errs.Length > MAX_ISSUES) return null;
+            foreach (var x in evs)
+            {
+                var e = Json.Obj(x);
+                if (e == null || !OnlyKeys(e, "agenda", "titre", "debut", "fin", "journee", "lien")) return null;
+                var agenda = Json.Get(e, "agenda") as string;
+                var title = Json.Get(e, "titre") as string;
+                var allDay = Json.Get(e, "journee");
+                var join = Json.Get(e, "lien");
+                if (!Name(agenda) || title == null || title.Trim().Length == 0 || title.Length > 120 || !(allDay is bool)) return null;
+                if (join != null && (!(join is string) || !JoinAllowed((string)join))) return null;
+                var startText = Json.Get(e, "debut") as string;
+                var endText = Json.Get(e, "fin") as string;
+                DateTime start, end;
+                if (startText == null || endText == null || !TryTime(startText, (bool)allDay, out start)
+                    || !TryTime(endText, (bool)allDay, out end) || end < start) return null;
+                a.Meetings.Add(new Meeting { Agenda = agenda, Title = Logic.Visible(title), Start = start, End = end, AllDay = (bool)allDay, Join = join as string });
+            }
+            foreach (var x in errs)
+            {
+                var e = Json.Obj(x);
+                if (e == null || !OnlyKeys(e, "agenda", "erreur", "depuis")) return null;
+                var agenda = Json.Get(e, "agenda") as string;
+                var error = Json.Get(e, "erreur") as string;
+                var sinceText = Json.Get(e, "depuis") as string;
+                DateTime since;
+                if (!Name(agenda) || error == null || error.Length > 300 || sinceText == null || !TryTime(sinceText, false, out since)) return null;
+                a.Issues.Add(new AgendaIssue { Agenda = agenda, Error = Logic.Visible(error), Since = since });
+            }
+            a.Meetings = a.Meetings.OrderBy(m => m.Start).ThenBy(m => m.Agenda, StringComparer.Ordinal).ToList();
+            return a;
+        }
+
+        static bool OnlyKeys(Dictionary<string, object> d, params string[] keys)
+        {
+            return d.Keys.All(k => keys.Contains(k)) && keys.All(d.ContainsKey);
+        }
+
+        static bool Name(string s) { return s != null && s.Length >= 1 && s.Length <= 30 && s.All(c => !char.IsControl(c)); }
+
+        // Journee entiere : "AAAA-MM-JJ", minuit local. Sinon une heure UTC ISO ("...Z"), convertie en heure locale.
+        public static bool TryTime(string s, bool allDay, out DateTime t)
+        {
+            var inv = CultureInfo.InvariantCulture;
+            if (allDay) return DateTime.TryParseExact(s, "yyyy-MM-dd", inv, DateTimeStyles.None, out t);
+            if (DateTime.TryParseExact(s, new[] { "yyyy-MM-dd'T'HH:mm:ss.FFF'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'" }, inv,
+                                       DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out t))
+            {
+                t = DateTime.SpecifyKind(t, DateTimeKind.Utc).ToLocalTime();
+                return true;
+            }
+            return false;
+        }
+
+        // Lien de reunion : https, sans identifiants ni port, sur Teams, Meet ou Zoom seulement (reverifie avant chaque ouverture).
+        public static bool JoinAllowed(string url)
+        {
+            Uri u;
+            if (url == null || url.Length > 500 || !Uri.TryCreate(url, UriKind.Absolute, out u)) return false;
+            if (u.Scheme != Uri.UriSchemeHttps || u.UserInfo.Length > 0 || !u.IsDefaultPort) return false;
+            var h = u.Host.ToLowerInvariant();
+            return h == "teams.microsoft.com" || h == "meet.google.com" || h == "zoom.us" || h.EndsWith(".zoom.us");
+        }
+
+        // Reunion a montrer dans l'encoche repliee : celle en cours, sinon la prochaine du jour qui commence dans "within".
+        public static Meeting Next(IEnumerable<Meeting> meetings, DateTime now, TimeSpan within)
+        {
+            return meetings.Where(m => !m.AllDay && m.End > now && m.Start <= now + within && m.Start.Date <= now.Date)
+                           .OrderBy(m => m.Start).FirstOrDefault();
+        }
+
+        // Reunion en cours (pour le "ne pas deranger" pendant les reunions), journees entieres exclues.
+        public static Meeting Current(IEnumerable<Meeting> meetings, DateTime now)
+        {
+            return meetings.Where(m => !m.AllDay && m.Start <= now && now < m.End).OrderBy(m => m.End).FirstOrDefault();
+        }
+
+        // "14:00 Point hebdo", ou "en cours · Point hebdo".
+        public static string Label(Meeting m, DateTime now)
+        {
+            return (m.Start <= now ? "en cours · " : m.Start.ToString("HH:mm") + " ") + m.Title;
+        }
+
+        // Reunions d'une journee pour le bilan du matin et le panneau : journees entieres d'abord.
+        public static List<Meeting> OfDay(IEnumerable<Meeting> meetings, DateTime day)
+        {
+            day = day.Date;
+            return meetings.Where(m => m.AllDay ? m.Start <= day && day < m.End : m.Start.Date == day)
+                           .OrderBy(m => m.AllDay ? 0 : 1).ThenBy(m => m.Start).ToList();
+        }
+
+        // "09:00–09:30  Point hebdo · Pro", "journée  Toussaint · Google".
+        public static string Line(Meeting m)
+        {
+            return (m.AllDay ? "journée" : m.Start.ToString("HH:mm") + "–" + m.End.ToString("HH:mm")) + "  " + m.Title + " · " + m.Agenda;
+        }
+
+        // Etat des agendas pour les reglages : erreurs par agenda, heure de lecture, donnees trop vieilles dites telles quelles.
+        public static List<string> Status(AgendaData a, DateTime received, DateTime now)
+        {
+            var lines = new List<string>();
+            if (a == null) { lines.Add("aucun agenda reçu de Logres"); return lines; }
+            if (now - received > STALE) lines.Add("pas de nouvelles de Logres depuis " + received.ToString("HH:mm") + " : agenda peut-être périmé");
+            foreach (var i in a.Issues) lines.Add(i.Agenda + " : " + i.Error + " depuis " + i.Since.ToString(i.Since.Date == now.Date ? "HH:mm" : "dd/MM HH:mm"));
+            if (a.ReadAt != null) lines.Add("lu par Logres à " + a.ReadAt.Value.ToString("HH:mm"));
+            return lines;
+        }
+    }
 }

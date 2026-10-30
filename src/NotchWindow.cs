@@ -162,6 +162,8 @@ namespace ClaudeNotch
             _row.Children.Add(_more);
             _moon.Foreground = Muted;
             _row.Children.Add(_moon);
+            _meeting.Foreground = Muted;
+            _row.Children.Add(_meeting);
             _row.Opacity = 0;
             _inner.Children.Add(_row);
 
@@ -239,6 +241,8 @@ namespace ClaudeNotch
             _track = Every(100, Track);   // 50 ms deplie ou entrouvert (voir GoTo)
             Every(1000, () => { foreach (var t in _tickers) t(); KeepOnTop(); CheckFullScreen(); Escalate(); FitWindow(); });
             Every(2000, CheckCall);
+            Every(15000, CheckAgenda);
+            CheckAgenda();
 
             // Musique en cours : releve sur un fil a part (Media.cs), nouvel etat recu ici a chaque changement.
             try { Media.Start(np => Dispatcher.BeginInvoke((Action)(() => { _nowPlaying = np; if (_form == Form.Expanded) RenderPanel(false); })), Program.Log); }
@@ -410,6 +414,10 @@ namespace ClaudeNotch
                 var events = Journal.Between(from, now);
                 _brief = Logic.NightSummary(events, actions.Count, actions.Count(r => r.Refused));
                 _briefDetails = Logic.NightDetails(events);
+                // Phase 4 : les reunions du jour (journees entieres a part, elles sont dans la section "Aujourd'hui").
+                var today = _agenda == null ? new List<Meeting>() : AgendaLogic.OfDay(_agenda.Meetings, now).Where(m => !m.AllDay).ToList();
+                if (today.Count > 0)
+                    _brief.Add("Aujourd'hui : " + (today.Count > 1 ? today.Count + " réunions, la première à " : "une réunion, à ") + today[0].Start.ToString("HH:mm"));
             }
             catch (Exception ex) { Program.Log("bilan du matin : " + ex.Message); _brief = new List<string>(); _briefDetails = new List<string>(); }
             return _brief;
@@ -456,6 +464,132 @@ namespace ClaudeNotch
         string _pausedForCall;           // titre mis en pause par Bip pour un appel, a reprendre a la fin
 
         // Ligne de la musique dans le panneau deplie : note, titre et artiste, application ; lecture/pause et suivant.
+        // ------------------------------------------------------------ agenda (phase 4, docs/CONTRAT-BIP-AGENDA.md de Logres)
+
+        AgendaData _agenda;   // dernier agenda accepte (state\agenda.json, ecrit par "bip agenda" a l'appel du collecteur de Logres)
+        DateTime _agendaReceived = DateTime.MinValue, _agendaFileTime = DateTime.MinValue;
+        readonly HashSet<string> _meetingAnnounced = new HashSet<string>();   // une seule entrouverture par reunion
+        readonly HashSet<string> _meetingDndDone = new HashSet<string>();     // un seul "ne pas deranger" pose par reunion
+        static readonly TimeSpan MEETING_SOON = TimeSpan.FromMinutes(5), MEETING_SHOWN = TimeSpan.FromHours(2);
+        readonly TextBlock _meeting = new TextBlock { FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 2, 0),
+                                                      MaxWidth = 180, TextTrimming = TextTrimming.CharacterEllipsis, Visibility = Visibility.Collapsed };
+
+        static string AgendaFile { get { return System.IO.Path.Combine(Program.StateDir, "agenda.json"); } }
+
+        bool AgendaStale { get { return _agenda != null && DateTime.Now - _agendaReceived > AgendaLogic.STALE; } }
+
+        // Toutes les 15 s : relit l'agenda s'il a change, met a jour l'encoche repliee, annonce une reunion 5 min avant (une fois),
+        // et pose le "ne pas deranger" jusqu'a la fin d'une reunion qui commence, si le reglage le demande. Un agenda perime reste
+        // utilise (les reunions changent rarement) mais le panneau le dit.
+        void CheckAgenda()
+        {
+            var now = DateTime.Now;
+            try
+            {
+                var fi = new FileInfo(AgendaFile);
+                if (fi.Exists && fi.LastWriteTimeUtc != _agendaFileTime)
+                {
+                    _agendaFileTime = fi.LastWriteTimeUtc;
+                    var doc = Json.Obj(Json.Parse(File.ReadAllText(AgendaFile, Encoding.UTF8)));
+                    var a = AgendaLogic.Parse(Json.Get(doc, "agenda"));
+                    DateTime recu;
+                    if (a != null && AgendaLogic.TryTime(Json.Str(doc, "recu") ?? "", false, out recu)) { _agenda = a; _agendaReceived = recu; }
+                    else Program.Log("agenda : agenda.json hors contrat, ignoré");
+                }
+            }
+            catch (Exception ex) { Program.Log("agenda : " + ex.Message); }
+            var meetings = _agenda == null ? new List<Meeting>() : _agenda.Meetings;
+
+            var next = AgendaLogic.Next(meetings, now, MEETING_SHOWN);
+            string label = next == null ? "" : AgendaLogic.Label(next, now);
+            if (_meeting.Text != label)
+            {
+                _meeting.Text = label;
+                _meeting.ToolTip = next == null ? null : AgendaLogic.Line(next);
+                _meeting.Visibility = label.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (_form == Form.Collapsed) { _colW = CollapsedWidth(); Resize(_colW, COL_H, 250); }
+            }
+
+            foreach (var m in meetings.Where(x => !x.AllDay && x.Start > now && x.Start - now <= MEETING_SOON).ToList())
+            {
+                if (!_meetingAnnounced.Add(m.Key)) continue;
+                var mm = m;
+                Announce(2, "agenda:" + mm.Key, "agenda", mm.Start - now + TimeSpan.FromMinutes(1), false,
+                         () => DateTime.Now < mm.Start + TimeSpan.FromMinutes(1), () => ShowMeetingPeek(mm));
+            }
+
+            var cur = AgendaLogic.Current(meetings, now);
+            if (cur != null && _cfg.AgendaDnd && _meetingDndDone.Add(cur.Key) && !(_cfg.Dnd && _cfg.DndUntil >= cur.End))
+            {
+                _cfg.DndUntil = cur.End;
+                _cfg.Save();
+                QuietChanged();
+            }
+            // Memoire bornee : on oublie les reunions que l'agenda ne contient plus.
+            if (_meetingAnnounced.Count + _meetingDndDone.Count > 200)
+            {
+                var keep = new HashSet<string>(meetings.Select(x => x.Key));
+                _meetingAnnounced.RemoveWhere(k => !keep.Contains(k));
+                _meetingDndDone.RemoveWhere(k => !keep.Contains(k));
+            }
+        }
+
+        // Entrouverture 5 min avant : titre, heure, agenda. Le bouton Rejoindre est dans le panneau, que le survol deplie.
+        void ShowMeetingPeek(Meeting m)
+        {
+            if (_form == Form.Expanded) return;
+            const double W = 400;
+            var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 18, 0) };
+            row.Children.Add(new TextBlock { Text = "◷", FontSize = 22, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+            int min = Math.Max(0, (int)Math.Ceiling((m.Start - DateTime.Now).TotalMinutes));
+            text.Children.Add(new TextBlock { Text = m.Title, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Ink,
+                                              TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = W - 80 });
+            text.Children.Add(new TextBlock { Text = (min > 0 ? "dans " + min + " min · " : "maintenant · ") + m.Start.ToString("HH:mm") + "–" + m.End.ToString("HH:mm")
+                                                     + " · " + m.Agenda + (m.Join != null ? " · survoler pour rejoindre" : ""),
+                                              FontSize = 12, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = W - 80 });
+            row.Children.Add(text);
+            ShowPeek(row, W, PEEK_H, TimeSpan.FromSeconds(8), null);
+        }
+
+        // Section "Aujourd'hui" du panneau : les reunions du jour, Rejoindre tant qu'une reunion n'est pas finie.
+        FrameworkElement AgendaSection(List<Meeting> today)
+        {
+            var now = DateTime.Now;
+            var p = new StackPanel { Margin = new Thickness(0, 6, 0, 0), Background = Brushes.Transparent };
+            p.MouseLeftButtonUp += (s, e) => e.Handled = true;   // encoche vide : pas d'ouverture de Claude ici
+            p.Children.Add(Section("Aujourd'hui"));
+            if (AgendaStale)
+                p.Children.Add(new TextBlock { Text = "agenda peut-être périmé : dernières nouvelles de Logres à " + _agendaReceived.ToString("HH:mm"),
+                                               FontSize = 11, Foreground = Muted, Margin = new Thickness(4, 0, 0, 4) });
+            foreach (var m in today)
+            {
+                var mm = m;
+                bool past = !m.AllDay && m.End <= now;
+                var g = new Grid { Margin = new Thickness(4, 1, 0, 1) };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                g.Children.Add(new TextBlock { Text = Safe(AgendaLogic.Line(m)), FontSize = 12, Foreground = past ? Muted : Ink, Opacity = past ? 0.6 : 1,
+                                               TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, ToolTip = AgendaLogic.Line(m) });
+                if (m.Join != null && !past)
+                {
+                    var b = Btn("Rejoindre", Btn2, Ink, Always, 26, () => Join(mm), () => DateTime.Now - _expandedAt > ARM_DELAY);
+                    Grid.SetColumn(b, 1);
+                    g.Children.Add(b);
+                }
+                p.Children.Add(g);
+            }
+            return p;
+        }
+
+        // Ouvre le lien de reunion dans le navigateur, apres avoir reverifie son hote (Teams, Meet, Zoom).
+        static void Join(Meeting m)
+        {
+            if (!AgendaLogic.JoinAllowed(m.Join)) return;
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(m.Join) { UseShellExecute = true }); }
+            catch (Exception ex) { Program.Log("agenda : ouverture du lien impossible (" + ex.Message + ")"); }
+        }
+
         FrameworkElement MusicRow(NowPlaying np)
         {
             var g = new Grid { Margin = new Thickness(4, 6, 0, 4) };
@@ -756,7 +890,7 @@ namespace ClaudeNotch
             int n = _rowBips.Count - _leaving.Count;
             if (n <= 0) n = 1;
             double w = 2 * COL_PAD + n * COL_BIP + (n - 1) * COL_GAP;
-            foreach (var extra in new[] { _more, _moon })
+            foreach (var extra in new[] { _more, _moon, _meeting })
                 if (extra.Visibility == Visibility.Visible)
                 {
                     extra.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -1428,13 +1562,15 @@ namespace ClaudeNotch
 
         void RenderPanel(bool opening)
         {
+            var agendaToday = _agenda == null ? new List<Meeting>() : AgendaLogic.OfDay(_agenda.Meetings, DateTime.Now);
             string sig = string.Join(";", _views.Select(v => v.S.Id + ":" + v.State + ":" + v.S.Display + ":" + v.Pending.Count + ":"
                                                          + string.Join(",", VisibleAgents(v.S).Select(a => a.Tuid + (a.End != null ? "+" : "")))))
                        + "|" + string.Join(",", _pending.Select(p => p.GetHashCode()))
                        + "|" + string.Join(",", _infos.Select(i => i.Msg.Key + i.At.Ticks))
                        + "|" + (_settingsOpen ? Quiet + ":" + _cfg.AutoDnd + ":" + _cfg.Flash + ":" + Rules.Created().Count : "")
                        + "|" + _captureOpen + ":" + BriefVisible() + ":" + _briefAt.Ticks + ":" + _briefDetail + ":" + DateTime.Now.ToString("HH")
-                       + "|" + (_nowPlaying == null ? "" : _nowPlaying.Key) + ":" + (_settingsOpen ? _cfg.PauseMusic.ToString() : "");
+                       + "|" + (_nowPlaying == null ? "" : _nowPlaying.Key) + ":" + (_settingsOpen ? _cfg.PauseMusic + ":" + _cfg.AgendaDnd : "")
+                       + "|" + (_agenda == null ? "" : _agenda.Print + ":" + AgendaStale + ":" + (agendaToday.Count > 0 ? DateTime.Now.ToString("HH:mm") : ""));
             if (sig == _panelSig && !opening) return;
             // Pendant une saisie, on ne reconstruit rien : le focus serait perdu.
             if (!opening && IsActive && Keyboard.FocusedElement is TextBox) return;
@@ -1462,6 +1598,7 @@ namespace ClaudeNotch
             // Bilan du matin : apres les demandes (elles passent toujours avant), avant les sessions.
             var brief = BriefVisible() ? BriefBlock() : null;
             if (brief != null) _content.Children.Add(brief);
+            if (agendaToday.Count > 0) _content.Children.Add(AgendaSection(agendaToday));
 
             var rows = _views.Where(v => v.Pending.Count == 0).OrderBy(v => v.State == St.Waiting ? 0 : 1).ThenBy(v => v.S.Order).ToList();
             for (int i = 0; i < rows.Count; i++) _content.Children.Add(Row(rows[i], i > 0));
@@ -1577,6 +1714,8 @@ namespace ClaudeNotch
             p.Children.Add(Toggle("Faire clignoter Claude", "quand une demande attend depuis 5 min", _cfg.Flash, () => { _cfg.Flash = !_cfg.Flash; _cfg.Save(); }));
             p.Children.Add(Toggle("Musique en pause pendant les appels", Media.Available ? "reprise à la fin de l'appel, si c'est le même morceau" : "sessions média de Windows indisponibles",
                                   _cfg.PauseMusic, () => { _cfg.PauseMusic = !_cfg.PauseMusic; _cfg.Save(); }));
+            p.Children.Add(Toggle("Ne pas déranger pendant les réunions", "agendas lus par Logres : " + string.Join(" · ", AgendaLogic.Status(_agenda, _agendaReceived, DateTime.Now)),
+                                  _cfg.AgendaDnd, () => { _cfg.AgendaDnd = !_cfg.AgendaDnd; _cfg.Save(); }));
             // Un clic passe au delai suivant (5, 10, 30, 60 min).
             p.Children.Add(Link("Rendre la main à Claude après " + _cfg.ReplyMinutes + " min",
                                 "une demande sans réponse ici repart dans la fenêtre Claude ; tout de suite si le poste est verrouillé", "↻", () =>
