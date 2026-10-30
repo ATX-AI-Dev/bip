@@ -59,9 +59,17 @@ namespace ClaudeNotch
 
         static void Loop(Action<string> log)
         {
-            GlobalSystemMediaTransportControlsSessionManager mgr;
-            try { mgr = Wait(GlobalSystemMediaTransportControlsSessionManager.RequestAsync()); }
-            catch (Exception ex) { _failed = true; log("musique : sessions media indisponibles (" + ex.Message + ")"); return; }
+            // Le service peut etre lent juste apres l'ouverture de session : cinq essais espaces de 10 s avant d'abandonner.
+            GlobalSystemMediaTransportControlsSessionManager mgr = null;
+            for (int i = 0; mgr == null; i++)
+            {
+                try { mgr = Wait(GlobalSystemMediaTransportControlsSessionManager.RequestAsync()); }
+                catch (Exception ex)
+                {
+                    if (i >= 4) { _failed = true; log("musique : sessions media indisponibles (" + ex.Message + ")"); return; }
+                    Thread.Sleep(10000);
+                }
+            }
             string last = null;
             while (true)
             {
@@ -86,7 +94,7 @@ namespace ClaudeNotch
             var s = mgr.GetCurrentSession();
             if (s == null) return null;
             var p = Wait(s.TryGetMediaPropertiesAsync());
-            var status = s.GetPlaybackInfo().PlaybackStatus;
+            var status = Status(s);
             if (string.IsNullOrEmpty(p.Title) && status != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) return null;
             return new NowPlaying
             {
@@ -95,6 +103,13 @@ namespace ClaudeNotch
                 Artist = Logic.Visible(p.Artist ?? ""),
                 Playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing
             };
+        }
+
+        // Etat de lecture ; une session en cours de fermeture peut ne plus en donner.
+        static GlobalSystemMediaTransportControlsSessionPlaybackStatus? Status(GlobalSystemMediaTransportControlsSession s)
+        {
+            var info = s.GetPlaybackInfo();
+            return info == null ? (GlobalSystemMediaTransportControlsSessionPlaybackStatus?)null : info.PlaybackStatus;
         }
 
         static void Order(Action<GlobalSystemMediaTransportControlsSessionManager> a)
@@ -107,15 +122,23 @@ namespace ClaudeNotch
         public static void TogglePlayPause() { Order(m => { var s = m.GetCurrentSession(); if (s != null) Wait(s.TryTogglePlayPauseAsync()); }); }
         public static void Next() { Order(m => { var s = m.GetCurrentSession(); if (s != null) Wait(s.TrySkipNextAsync()); }); }
 
-        // Pause pour un appel : seulement si quelque chose joue ; "done" recoit vrai si la pause a ete faite.
-        public static void PauseIfPlaying(Action<bool> done)
+        // Pause pour un appel : seulement si quelque chose joue. "done" recoit le titre mis en pause, lu sur la session
+        // elle-meme (le releve a 2 s peut avoir un temps de retard), ou null si rien n'a ete mis en pause. Toujours appele.
+        public static void PauseIfPlaying(Action<string> done)
         {
             Order(m =>
             {
-                var s = m.GetCurrentSession();
-                bool paused = s != null && s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing
-                              && Wait(s.TryPauseAsync());
-                done(paused);
+                string paused = null;
+                try
+                {
+                    var s = m.GetCurrentSession();
+                    if (s != null && Status(s) == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                    {
+                        var title = Logic.Visible(Wait(s.TryGetMediaPropertiesAsync()).Title ?? "");
+                        if (Wait(s.TryPauseAsync())) paused = title;
+                    }
+                }
+                finally { done(paused); }
             });
         }
 
@@ -126,7 +149,7 @@ namespace ClaudeNotch
             Order(m =>
             {
                 var s = m.GetCurrentSession();
-                if (s == null || s.GetPlaybackInfo().PlaybackStatus != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused) return;
+                if (s == null || Status(s) != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused) return;
                 if (Logic.Visible(Wait(s.TryGetMediaPropertiesAsync()).Title ?? "") != (title ?? "")) return;
                 Wait(s.TryPlayAsync());
             });

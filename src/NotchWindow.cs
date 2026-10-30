@@ -434,7 +434,7 @@ namespace ClaudeNotch
                     text.Children.Add(new TextBlock { Text = Safe(l), FontSize = 11.5, FontFamily = Mono, Foreground = Code, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) });
                 var report = new TextBlock { Text = "Actions des agents : rapport d'audit ↗", FontSize = 11.5, Foreground = Ink, Cursor = Cursors.Hand,
                                              TextDecorations = TextDecorations.Underline, Margin = new Thickness(0, 6, 0, 0) };
-                report.MouseLeftButtonUp += (s, e) => { e.Handled = true; System.Threading.Tasks.Task.Run(() => Report.Open(1)); };
+                report.MouseLeftButtonUp += (s, e) => { e.Handled = true; OpenReport(1); };
                 text.Children.Add(report);
             }
             g.Children.Add(text);
@@ -1304,8 +1304,7 @@ namespace ClaudeNotch
                 // Musique en pause pour l'appel (si quelque chose joue) ; reprise a la fin, si c'est toujours ce morceau.
                 if (_cfg.PauseMusic && Media.Available)
                 {
-                    var title = _nowPlaying != null ? _nowPlaying.Title : "";
-                    Media.PauseIfPlaying(paused => Dispatcher.BeginInvoke((Action)(() => { if (paused) _pausedForCall = title; })));
+                    Media.PauseIfPlaying(title => Dispatcher.BeginInvoke((Action)(() => { if (title != null && _inCall) _pausedForCall = title; })));
                 }
                 // Armee meme sous une sourdine manuelle : si celle-ci expire pendant l'appel,
                 // l'automatique prend le relais. La micro-ouverture seulement si ca change quelque chose.
@@ -1325,7 +1324,9 @@ namespace ClaudeNotch
 
             _inCall = false;
             _micOffSince = null;
-            if (_pausedForCall != null) { Media.ResumeIfPaused(_pausedForCall); _pausedForCall = null; }
+            // Reglage decoche pendant l'appel : rien n'est relance.
+            if (_pausedForCall != null && _cfg.PauseMusic) Media.ResumeIfPaused(_pausedForCall);
+            _pausedForCall = null;
             if (!_autoDnd) return;
             _autoDnd = false;
             _autoSuppressed = false;
@@ -1510,6 +1511,24 @@ namespace ClaudeNotch
         string _reportError;   // dernier echec du rapport d'audit, montre sous son lien
         bool _reportBusy;      // rapport en cours de generation
 
+        void OpenReport(int days)
+        {
+            // Un seul rapport a la fois : deux generations ecriraient le meme fichier.
+            if (_reportBusy) return;
+            _reportBusy = true;
+            if (_reportError != null) { _reportError = null; Redraw(); }
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                // Echec : le message remplace la precision sous le lien, au lieu de n'aller qu'au notch.log.
+                var err = Report.Open(days);
+                Dispatcher.BeginInvoke((Action)(() =>
+                {
+                    _reportBusy = false;
+                    if (err != null) { _reportError = "Rapport impossible : " + err; Redraw(); }
+                }));
+            });
+        }
+
         void ToggleSettings()
         {
             _settingsOpen = !_settingsOpen;
@@ -1573,23 +1592,7 @@ namespace ClaudeNotch
                                 "↗", OpenCapture));
 
             p.Children.Add(Section("Traçabilité"));
-            p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () =>
-            {
-                // Un seul rapport a la fois : deux generations ecriraient le meme fichier.
-                if (_reportBusy) return;
-                _reportBusy = true;
-                if (_reportError != null) { _reportError = null; Redraw(); }
-                System.Threading.Tasks.Task.Run(() =>
-                {
-                    // Echec : le message remplace la precision sous le lien, au lieu de n'aller qu'au notch.log.
-                    var err = Report.Open(Audit.KeepDays);
-                    Dispatcher.BeginInvoke((Action)(() =>
-                    {
-                        _reportBusy = false;
-                        if (err != null) { _reportError = "Rapport impossible : " + err; Redraw(); }
-                    }));
-                });
-            }));
+            p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () => OpenReport(Audit.KeepDays)));
 
             var rules = Rules.Created();
             p.Children.Add(Section("Règles créées par Bip"));
