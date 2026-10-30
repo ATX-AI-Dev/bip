@@ -4,6 +4,13 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 ## [Non publié]
 
+### Phase 4 « compagnon » : agendas (Google, Microsoft personnel, M365)
+
+- Agendas lus par Logres sur `.178` par leur adresse iCal secrète (décision de Ludo, 30/10/2026 ; contrat `docs/CONTRAT-BIP-AGENDA.md` de Logres) ; les adresses ne quittent jamais `.178`.
+- `bip agenda` : reçoit du collecteur la réponse brute du relevé (base64 sur l'entrée standard ; PowerShell 7 réécrirait les dates), revalide l'agenda et l'écrit dans `state\agenda.json`.
+- Encoche repliée : réunion en cours ou prochaine du jour dans les 2 h ; entrouverture 5 min avant (une fois) ; section « Aujourd'hui » avec **Rejoindre** (Teams, Meet, Zoom) ; bilan du matin ; état des agendas et « ne pas déranger pendant les réunions » (désactivé par défaut).
+- 13 tests (207 au total).
+
 ### Phase 3 « compagnon » : quotidien (capture rapide, bilan du matin, musique)
 
 - **Capture rapide** : raccourci global `Ctrl+Alt+B`, une ligne horodatée ajoutée à `ideation/inbox.md` du vault (copie locale Syncthing), créée avec son en-tête au besoin ; jamais de dossier créé ni d'écriture à travers un lien ; résultat annoncé d'une ligne.

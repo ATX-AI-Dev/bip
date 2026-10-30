@@ -470,6 +470,19 @@ namespace ClaudeNotch
         DateTime _agendaReceived = DateTime.MinValue, _agendaFileTime = DateTime.MinValue;
         readonly HashSet<string> _meetingAnnounced = new HashSet<string>();   // une seule entrouverture par reunion
         readonly HashSet<string> _meetingDndDone = new HashSet<string>();     // un seul "ne pas deranger" pose par reunion
+        DateTime? _meetingDndSet;   // fin de la sourdine posee par l'agenda (null : aucune)
+
+        // Leve la sourdine posee par l'agenda, seulement si personne ne l'a changee depuis (une pause manuelle reste).
+        void ClearMeetingDnd()
+        {
+            if (_meetingDndSet != null && _cfg.DndUntil == _meetingDndSet.Value)
+            {
+                _cfg.DndUntil = DateTime.MinValue;
+                _cfg.Save();
+                QuietChanged();
+            }
+            _meetingDndSet = null;
+        }
         static readonly TimeSpan MEETING_SOON = TimeSpan.FromMinutes(5), MEETING_SHOWN = TimeSpan.FromHours(2);
         readonly TextBlock _meeting = new TextBlock { FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 2, 0),
                                                       MaxWidth = 180, TextTrimming = TextTrimming.CharacterEllipsis, Visibility = Visibility.Collapsed };
@@ -489,8 +502,11 @@ namespace ClaudeNotch
                 var fi = new FileInfo(AgendaFile);
                 if (fi.Exists && fi.LastWriteTimeUtc != _agendaFileTime)
                 {
-                    _agendaFileTime = fi.LastWriteTimeUtc;
+                    // La date du fichier n'est retenue qu'une fois lu : une lecture qui echoue (fichier verrouille un instant) est
+                    // retentee au passage suivant (relecture Gemini du 30/10/2026).
+                    var stamp = fi.LastWriteTimeUtc;
                     var doc = Json.Obj(Json.Parse(File.ReadAllText(AgendaFile, Encoding.UTF8)));
+                    _agendaFileTime = stamp;
                     var a = AgendaLogic.Parse(Json.Get(doc, "agenda"));
                     DateTime recu;
                     if (a != null && AgendaLogic.TryTime(Json.Str(doc, "recu") ?? "", false, out recu)) { _agenda = a; _agendaReceived = recu; }
@@ -514,14 +530,19 @@ namespace ClaudeNotch
             {
                 if (!_meetingAnnounced.Add(m.Key)) continue;
                 var mm = m;
-                Announce(2, "agenda:" + mm.Key, "agenda", mm.Start - now + TimeSpan.FromMinutes(1), false,
+                // Sans source : deux reunions simultanees (deux agendas) sont annoncees l'une apres l'autre, alors que le plafond
+                // d'une annonce par source et par 2 min abandonnerait la seconde (relecture Gemini du 30/10/2026).
+                Announce(2, "agenda:" + mm.Key, null, mm.Start - now + TimeSpan.FromMinutes(1), false,
                          () => DateTime.Now < mm.Start + TimeSpan.FromMinutes(1), () => ShowMeetingPeek(mm));
             }
 
             var cur = AgendaLogic.Current(meetings, now);
+            // Sourdine posee pour une reunion qui n'est plus en cours (annulee, raccourcie) ou reglage decoche : levee.
+            if (_meetingDndSet != null && (!_cfg.AgendaDnd || cur == null || cur.End != _meetingDndSet.Value)) ClearMeetingDnd();
             if (cur != null && _cfg.AgendaDnd && _meetingDndDone.Add(cur.Key) && !(_cfg.Dnd && _cfg.DndUntil >= cur.End))
             {
                 _cfg.DndUntil = cur.End;
+                _meetingDndSet = cur.End;
                 _cfg.Save();
                 QuietChanged();
             }
@@ -1715,7 +1736,7 @@ namespace ClaudeNotch
             p.Children.Add(Toggle("Musique en pause pendant les appels", Media.Available ? "reprise à la fin de l'appel, si c'est le même morceau" : "sessions média de Windows indisponibles",
                                   _cfg.PauseMusic, () => { _cfg.PauseMusic = !_cfg.PauseMusic; _cfg.Save(); }));
             p.Children.Add(Toggle("Ne pas déranger pendant les réunions", "agendas lus par Logres : " + string.Join(" · ", AgendaLogic.Status(_agenda, _agendaReceived, DateTime.Now)),
-                                  _cfg.AgendaDnd, () => { _cfg.AgendaDnd = !_cfg.AgendaDnd; _cfg.Save(); }));
+                                  _cfg.AgendaDnd, () => { _cfg.AgendaDnd = !_cfg.AgendaDnd; _cfg.Save(); if (!_cfg.AgendaDnd) ClearMeetingDnd(); }));
             // Un clic passe au delai suivant (5, 10, 30, 60 min).
             p.Children.Add(Link("Rendre la main à Claude après " + _cfg.ReplyMinutes + " min",
                                 "une demande sans réponse ici repart dans la fenêtre Claude ; tout de suite si le poste est verrouillé", "↻", () =>

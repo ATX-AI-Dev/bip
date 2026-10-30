@@ -412,6 +412,9 @@ static class AuditTests
               && AgendaLogic.Parse(J(AG(ev1.Replace("2026-11-02T08:30:00.000Z", "2026-11-02 08:30"), ""))) == null
               && AgendaLogic.Parse(J(AG(ev1.Replace("2026-11-02T08:30:00.000Z", "2026-11-01T08:30:00.000Z"), ""))) == null
               && AgendaLogic.Parse(J(AG(ev1.Replace("Point hebdo", new string('x', 121)), ""))) == null);
+        var sansFin = AgendaLogic.Parse(J(AG(ev2.Replace("\"fin\":\"2026-11-02\"", "\"fin\":\"2026-11-01\""), "")));
+        Check("agenda : journee entiere sans fin = un jour (relecture Gemini)", sansFin != null && sansFin.Meetings[0].End == new DateTime(2026, 11, 2)
+              && AgendaLogic.OfDay(sansFin.Meetings, new DateTime(2026, 11, 1)).Count == 1);
         Check("agenda : vide accepte (aucun agenda declare)", AgendaLogic.Parse(J("{\"empreinte\":\"0123456789abcdef\",\"luA\":null,\"evenements\":[],\"erreurs\":[]}")) != null);
         Check("lien : Meet et sous-domaine Zoom acceptes ; identifiants, port refuses",
               AgendaLogic.JoinAllowed("https://meet.google.com/abc") && AgendaLogic.JoinAllowed("https://us02web.zoom.us/j/1")

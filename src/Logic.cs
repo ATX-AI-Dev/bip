@@ -481,6 +481,8 @@ namespace ClaudeNotch
                 DateTime start, end;
                 if (startText == null || endText == null || !TryTime(startText, (bool)allDay, out start)
                     || !TryTime(endText, (bool)allDay, out end) || end < start) return null;
+                // Journee entiere sans fin (debut == fin) : un jour, comme le veut iCal ; sinon elle ne serait affichee nulle part.
+                if ((bool)allDay && end == start) end = start.AddDays(1);
                 a.Meetings.Add(new Meeting { Agenda = agenda, Title = Logic.Visible(title), Start = start, End = end, AllDay = (bool)allDay, Join = join as string });
             }
             foreach (var x in errs)

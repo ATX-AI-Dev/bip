@@ -179,6 +179,20 @@ panneau déplié : « ♪ titre — artiste », l'application, lecture/pause et 
 média de Windows : aucun compte, aucun accès réseau. Pendant un appel, la musique est mise en pause et reprend
 à la fin si le même morceau est toujours en pause (réglage « Musique en pause pendant les appels », `music=`).
 
+### Agenda (Google, Outlook, M365)
+
+Les agendas sont lus par **Logres** sur `.178` (adresses iCal secrètes, jamais sur le PC) et arrivent par le collecteur du PC,
+qui les passe à `bip agenda` (contrat `docs/CONTRAT-BIP-AGENDA.md` de Logres). Bip montre :
+
+- dans l'encoche repliée, la réunion en cours ou la prochaine du jour dans les 2 heures (« 14:00 Point hebdo ») ;
+- 5 minutes avant, une entrouverture, une seule fois ; la survoler déplie le panneau ;
+- dans le panneau, la section « Aujourd'hui » avec un bouton **Rejoindre** (Teams, Meet ou Zoom seulement, hôte revérifié
+  avant l'ouverture) ; le bilan du matin compte les réunions du jour ;
+- dans les réglages (☰), l'état de chaque agenda et l'option « Ne pas déranger pendant les réunions » (désactivée par défaut,
+  `agendadnd=`) : la sourdine est posée jusqu'à la fin de la réunion.
+
+Sans nouvelles de Logres depuis 30 minutes, le panneau dit que l'agenda est peut-être périmé.
+
 ### Antigravity
 
 Si Antigravity est installé, `installer.cmd` le branche aussi : ses sessions apparaissent dans
