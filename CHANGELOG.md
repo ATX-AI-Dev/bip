@@ -4,13 +4,15 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 ## [Non publié]
 
-### Phase 3 « compagnon » : quotidien (capture rapide, bilan du matin)
+### Phase 3 « compagnon » : quotidien (capture rapide, bilan du matin, musique)
 
 - **Capture rapide** : raccourci global `Ctrl+Alt+B`, une ligne horodatée ajoutée à `ideation/inbox.md` du vault (copie locale Syncthing), créée avec son en-tête au besoin ; jamais de dossier créé ni d'écriture à travers un lien ; résultat annoncé d'une ligne.
 - **Bilan du matin** dans le panneau déplié (5 h - 12 h) : ce qui s'est passé depuis la veille à 20 h (sessions, commandes, actions et refus des agents, alertes Logres) ; masquable jusqu'au lendemain ; recalculé toutes les 30 s au plus.
 - Les infos de Bip Connect sont inscrites au journal du jour (`info2` / `info3`) ; le journal se lit sur plusieurs jours (le récap d'un appel qui passe minuit garde ce qui précède, constat F7 de l'audit).
-- **Reporté** : musique en cours et pause pendant les appels. L'API des sessions média de Windows compile sans SDK mais n'a vu aucune session sur ce poste, même session connectée et depuis le contexte de l'Explorateur : essai avec une vraie source (Spotify, YouTube) à faire par Ludo.
-- 19 tests ajoutés (187 au total), dont écriture de la capture et journal sur plusieurs jours (Model.cs testé avec un `Program` factice). Relecture Gemini : 7 constats corrigés (note qui partait dans une réponse « Autre… » à un agent, texte perdu au redessin ou en cas d'échec d'écriture, panneau bloqué ouvert, lien orphelin suivi, bilan non redessiné, tests manquants).
+- **Musique en cours** dans le panneau déplié (sessions média de Windows, sans SDK ni réseau) : titre, artiste, application, lecture/pause et morceau suivant. Vérifié avec une vraie vidéo YouTube dans Chrome.
+- **Pause pendant les appels** : la musique qui joue est mise en pause au début d'un appel et reprend à la fin si le même morceau est toujours en pause (`music=`, réglable dans ☰).
+- **Bilan du matin cliquable** : détail heure par heure (sessions finies, commandes, alertes ; 20 lignes au plus) et lien vers le rapport d'audit.
+- 26 tests ajoutés (194 au total), dont écriture de la capture et journal sur plusieurs jours (Model.cs testé avec un `Program` factice). Relecture Gemini : 7 constats corrigés (note qui partait dans une réponse « Autre… » à un agent, texte perdu au redessin ou en cas d'échec d'écriture, panneau bloqué ouvert, lien orphelin suivi, bilan non redessiné, tests manquants).
 
 ### Phase 2 « compagnon » : Antigravity
 

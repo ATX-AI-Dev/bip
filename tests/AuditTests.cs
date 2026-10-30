@@ -390,6 +390,23 @@ static class AuditTests
         Check("nuit calme : rien a dire", Logic.NightSummary(new[] { E("travail", "s", "") }, 0, 0).Count == 0);
         Check("une seule action, sans refus", Logic.NightSummary(new Tuple<DateTime, string, string, string>[0], 1, 0)[0] == "1 action d'agent");
 
+        Console.WriteLine("Phase 3 : detail du bilan et musique en cours");
+        var det = Logic.NightDetails(new[] {
+            Tuple.Create(at10.AddHours(-8), "info2", "paperclip", "Agent Perceval en erreur"),
+            Tuple.Create(at10.AddHours(-12), "termine", "s1", "Audit · repo/"),
+            Tuple.Create(at10.AddHours(-11), "travail", "s1", ""),
+            Tuple.Create(at10.AddHours(-10), "commande-ko", "run-2", "npm run build") });
+        Check("detail : dans l'ordre, heure et nature", det.Count == 3 && det[0] == "22:12  session finie : Audit · repo/"
+                                                        && det[1] == "00:12  commande en échec : npm run build" && det[2] == "02:12  alerte importante (paperclip) : Agent Perceval en erreur");
+        var many20 = Enumerable.Range(0, 25).Select(i => Tuple.Create(at10.AddMinutes(-i), "termine", "s", "n" + i));
+        var d25 = Logic.NightDetails(many20);
+        Check("detail : 20 lignes au plus, puis +N", d25.Count == 21 && d25[20] == "+5 autres");
+        Check("application : Chrome", Logic.MediaAppName("Chrome") == "Chrome" && Logic.MediaAppName(@"C:\Program Files\Google\Chrome\Application\chrome.exe") == "Chrome");
+        Check("application : Spotify (Store)", Logic.MediaAppName("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify") == "Spotify");
+        Check("application inconnue : nom sans extension", Logic.MediaAppName(@"D:\outils\MonLecteur.exe") == "MonLecteur" && Logic.MediaAppName(null) == "lecteur");
+        Check("ligne : titre — artiste", Logic.MediaLine("Dark Tech House", "Gotha Wave") == "Dark Tech House — Gotha Wave");
+        Check("ligne : titre seul, artiste seul, rien", Logic.MediaLine("T", "") == "T" && Logic.MediaLine("", "A") == "A" && Logic.MediaLine(null, null) == "lecture en cours");
+
         Console.WriteLine("Phase 3 : ecriture de la capture et journal sur plusieurs jours (Model.cs)");
         Directory.CreateDirectory(Program.Root);
         try

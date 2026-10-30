@@ -240,6 +240,10 @@ namespace ClaudeNotch
             Every(1000, () => { foreach (var t in _tickers) t(); KeepOnTop(); CheckFullScreen(); Escalate(); FitWindow(); });
             Every(2000, CheckCall);
 
+            // Musique en cours : releve sur un fil a part (Media.cs), nouvel etat recu ici a chaque changement.
+            try { Media.Start(np => Dispatcher.BeginInvoke((Action)(() => { _nowPlaying = np; if (_form == Form.Expanded) RenderPanel(false); })), Program.Log); }
+            catch (Exception ex) { Program.Log("musique : " + ex.Message); }
+
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s, e) => Dispatcher.BeginInvoke((Action)Place);
             Microsoft.Win32.SystemEvents.SessionSwitch += (s, e) => Dispatcher.BeginInvoke((Action)(() => OnSessionSwitch(e.Reason)));
 
@@ -388,8 +392,9 @@ namespace ClaudeNotch
             return Logic.IsMorning(now) && _cfg.BriefHiddenOn != now.ToString("yyyy-MM-dd") && BriefLines().Count > 0;
         }
 
-        List<string> _brief;
+        List<string> _brief, _briefDetails;
         DateTime _briefAt = DateTime.MinValue;
+        bool _briefDetail;   // detail deplie par un clic sur le bilan
 
         // Ce qui s'est passe depuis la veille a 20 h : journal du jour (sessions, commandes, infos) et journal d'audit.
         // Recalcule toutes les 30 s au plus : le panneau deplie se rafraichit toutes les 500 ms.
@@ -402,9 +407,11 @@ namespace ClaudeNotch
             {
                 var from = Logic.NightStart(now);
                 var actions = Audit.Rows(Program.Root, 2).Where(r => r.T >= from && !r.Hidden && !r.Rule).ToList();
-                _brief = Logic.NightSummary(Journal.Between(from, now), actions.Count, actions.Count(r => r.Refused));
+                var events = Journal.Between(from, now);
+                _brief = Logic.NightSummary(events, actions.Count, actions.Count(r => r.Refused));
+                _briefDetails = Logic.NightDetails(events);
             }
-            catch (Exception ex) { Program.Log("bilan du matin : " + ex.Message); _brief = new List<string>(); }
+            catch (Exception ex) { Program.Log("bilan du matin : " + ex.Message); _brief = new List<string>(); _briefDetails = new List<string>(); }
             return _brief;
         }
 
@@ -417,13 +424,57 @@ namespace ClaudeNotch
             text.Children.Add(new TextBlock { Text = "Pendant la nuit", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Ink, Margin = new Thickness(0, 0, 0, 2) });
             foreach (var l in BriefLines())
                 text.Children.Add(new TextBlock { Text = Safe(l), FontSize = 12, Foreground = Muted, TextWrapping = TextWrapping.Wrap });
+            if (!_briefDetail)
+                text.Children.Add(new TextBlock { Text = "Cliquer pour le détail", FontSize = 11, Foreground = Muted, Opacity = 0.7, Margin = new Thickness(0, 3, 0, 0) });
+            else
+            {
+                // Detail heure par heure, puis le rapport d'audit pour les actions des agents.
+                text.Children.Add(new Rectangle { Height = 1, Fill = Sep, Margin = new Thickness(0, 6, 0, 6) });
+                foreach (var l in _briefDetails ?? new List<string>())
+                    text.Children.Add(new TextBlock { Text = Safe(l), FontSize = 11.5, FontFamily = Mono, Foreground = Code, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) });
+                var report = new TextBlock { Text = "Actions des agents : rapport d'audit ↗", FontSize = 11.5, Foreground = Ink, Cursor = Cursors.Hand,
+                                             TextDecorations = TextDecorations.Underline, Margin = new Thickness(0, 6, 0, 0) };
+                report.MouseLeftButtonUp += (s, e) => { e.Handled = true; System.Threading.Tasks.Task.Run(() => Report.Open(1)); };
+                text.Children.Add(report);
+            }
             g.Children.Add(text);
             var x = new TextBlock { Text = "✕", FontSize = 12, Foreground = Muted, Cursor = Cursors.Hand, ToolTip = "Masquer jusqu'à demain",
                                     VerticalAlignment = VerticalAlignment.Top, Padding = new Thickness(8, 0, 2, 4), Background = Brushes.Transparent };
             x.MouseLeftButtonUp += (s, e) => { e.Handled = true; _cfg.BriefHiddenOn = DateTime.Now.ToString("yyyy-MM-dd"); _cfg.Save(); Redraw(); };
             Grid.SetColumn(x, 1);
             g.Children.Add(x);
-            var b = new Border { Background = Card, CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 10, 12, 10), Margin = new Thickness(0, 0, 0, 10), Child = g };
+            var b = new Border { Background = Card, CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 10, 12, 10), Margin = new Thickness(0, 0, 0, 10),
+                                 Child = g, Cursor = Cursors.Hand, ToolTip = _briefDetail ? "Replier le détail" : "Voir le détail" };
+            // Un clic deplie ou replie le detail (et n'ouvre jamais Claude, meme encoche vide).
+            b.MouseLeftButtonUp += (s, e) => { e.Handled = true; _briefDetail = !_briefDetail; Redraw(); };
+            return b;
+        }
+
+        // ------------------------------------------------------------ musique en cours (phase 3)
+
+        NowPlaying _nowPlaying;          // ce qui joue (Media.cs), ou null
+        string _pausedForCall;           // titre mis en pause par Bip pour un appel, a reprendre a la fin
+
+        // Ligne de la musique dans le panneau deplie : note, titre et artiste, application ; lecture/pause et suivant.
+        FrameworkElement MusicRow(NowPlaying np)
+        {
+            var g = new Grid { Margin = new Thickness(4, 6, 0, 4) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.Children.Add(new TextBlock { Text = "♪", FontSize = 15, Foreground = np.Playing ? OnGreen : Muted, Margin = new Thickness(6, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = Logic.MediaLine(np.Title, np.Artist), FontSize = 12.5, Foreground = Ink, TextTrimming = TextTrimming.CharacterEllipsis,
+                                              ToolTip = Logic.MediaLine(np.Title, np.Artist) });
+            text.Children.Add(new TextBlock { Text = np.App + (np.Playing ? " · en lecture" : " · en pause"), FontSize = 11, Foreground = Muted });
+            Grid.SetColumn(text, 1);
+            g.Children.Add(text);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            buttons.Children.Add(Btn(np.Playing ? "❚❚" : "▶", Brushes.Transparent, Ink, Always, 28, Media.TogglePlayPause, () => DateTime.Now - _expandedAt > ARM_DELAY));
+            buttons.Children.Add(Btn("⏭", Brushes.Transparent, Ink, Always, 28, Media.Next, () => DateTime.Now - _expandedAt > ARM_DELAY));
+            Grid.SetColumn(buttons, 2);
+            g.Children.Add(buttons);
+            var b = new Border { Child = g, Background = Brushes.Transparent };
             b.MouseLeftButtonUp += (s, e) => e.Handled = true;   // encoche vide : pas d'ouverture de Claude ici
             return b;
         }
@@ -1250,6 +1301,12 @@ namespace ClaudeNotch
                 _inCall = true;
                 _callStart = now;
                 _callApp = app;
+                // Musique en pause pour l'appel (si quelque chose joue) ; reprise a la fin, si c'est toujours ce morceau.
+                if (_cfg.PauseMusic && Media.Available)
+                {
+                    var title = _nowPlaying != null ? _nowPlaying.Title : "";
+                    Media.PauseIfPlaying(paused => Dispatcher.BeginInvoke((Action)(() => { if (paused) _pausedForCall = title; })));
+                }
                 // Armee meme sous une sourdine manuelle : si celle-ci expire pendant l'appel,
                 // l'automatique prend le relais. La micro-ouverture seulement si ca change quelque chose.
                 if (_cfg.AutoDnd)
@@ -1268,6 +1325,7 @@ namespace ClaudeNotch
 
             _inCall = false;
             _micOffSince = null;
+            if (_pausedForCall != null) { Media.ResumeIfPaused(_pausedForCall); _pausedForCall = null; }
             if (!_autoDnd) return;
             _autoDnd = false;
             _autoSuppressed = false;
@@ -1374,7 +1432,8 @@ namespace ClaudeNotch
                        + "|" + string.Join(",", _pending.Select(p => p.GetHashCode()))
                        + "|" + string.Join(",", _infos.Select(i => i.Msg.Key + i.At.Ticks))
                        + "|" + (_settingsOpen ? Quiet + ":" + _cfg.AutoDnd + ":" + _cfg.Flash + ":" + Rules.Created().Count : "")
-                       + "|" + _captureOpen + ":" + BriefVisible() + ":" + _briefAt.Ticks + ":" + DateTime.Now.ToString("HH");
+                       + "|" + _captureOpen + ":" + BriefVisible() + ":" + _briefAt.Ticks + ":" + _briefDetail + ":" + DateTime.Now.ToString("HH")
+                       + "|" + (_nowPlaying == null ? "" : _nowPlaying.Key) + ":" + (_settingsOpen ? _cfg.PauseMusic.ToString() : "");
             if (sig == _panelSig && !opening) return;
             // Pendant une saisie, on ne reconstruit rien : le focus serait perdu.
             if (!opening && IsActive && Keyboard.FocusedElement is TextBox) return;
@@ -1407,6 +1466,8 @@ namespace ClaudeNotch
             for (int i = 0; i < rows.Count; i++) _content.Children.Add(Row(rows[i], i > 0));
             if (_views.Count == 0)
                 _content.Children.Add(EmptyPanel());
+            if (_nowPlaying != null)
+                _content.Children.Add(MusicRow(_nowPlaying));
             if (_infos.Count > 0)
                 _content.Children.Add(InfoSection());
             if (_settingsOpen)
@@ -1495,6 +1556,8 @@ namespace ClaudeNotch
                 if (!_cfg.AutoDnd && _autoDnd) { _autoDnd = false; QuietChanged(); }
             }));
             p.Children.Add(Toggle("Faire clignoter Claude", "quand une demande attend depuis 5 min", _cfg.Flash, () => { _cfg.Flash = !_cfg.Flash; _cfg.Save(); }));
+            p.Children.Add(Toggle("Musique en pause pendant les appels", Media.Available ? "reprise à la fin de l'appel, si c'est le même morceau" : "sessions média de Windows indisponibles",
+                                  _cfg.PauseMusic, () => { _cfg.PauseMusic = !_cfg.PauseMusic; _cfg.Save(); }));
             // Un clic passe au delai suivant (5, 10, 30, 60 min).
             p.Children.Add(Link("Rendre la main à Claude après " + _cfg.ReplyMinutes + " min",
                                 "une demande sans réponse ici repart dans la fenêtre Claude ; tout de suite si le poste est verrouillé", "↻", () =>

@@ -170,6 +170,14 @@ autre application a déjà pris le raccourci, les réglages (☰) le disent et o
 **Bilan du matin** : de 5 h à midi, le panneau déplié commence par « Pendant la nuit » (depuis la veille à
 20 h) : sessions finies, commandes, actions des agents et refus (journal d'audit), alertes reçues de Logres
 et la dernière importante. Une croix le masque jusqu'au lendemain. Il ne s'entrouvre jamais de lui-même.
+Un clic dessus déplie le détail heure par heure (20 lignes au plus) et un lien vers le rapport d'audit.
+
+### Musique en cours
+
+Ce qui joue sur le poste (Spotify, Deezer, YouTube ou SoundCloud dans le navigateur, VLC…) apparaît dans le
+panneau déplié : « ♪ titre — artiste », l'application, lecture/pause et morceau suivant. Bip lit les sessions
+média de Windows : aucun compte, aucun accès réseau. Pendant un appel, la musique est mise en pause et reprend
+à la fin si le même morceau est toujours en pause (réglage « Musique en pause pendant les appels », `music=`).
 
 ### Antigravity
 

@@ -169,6 +169,56 @@ namespace ClaudeNotch
             return lines;
         }
 
+        // Detail du bilan (clic) : un evenement par ligne, dans l'ordre, "HH:mm  texte" ; 20 au plus, puis "+N".
+        public static List<string> NightDetails(IEnumerable<Tuple<DateTime, string, string, string>> events)
+        {
+            var lines = new List<string>();
+            foreach (var e in events.OrderBy(x => x.Item1))
+            {
+                string what;
+                switch (e.Item2)
+                {
+                    case "termine": what = "session finie : " + e.Item4; break;
+                    case "commande-ok": what = "commande réussie : " + e.Item4; break;
+                    case "commande-ko": what = "commande en échec : " + e.Item4; break;
+                    case "info2": what = "alerte importante (" + e.Item3 + ") : " + e.Item4; break;
+                    case "info3": what = "info (" + e.Item3 + ") : " + e.Item4; break;
+                    default: continue;
+                }
+                lines.Add(e.Item1.ToString("HH:mm", CultureInfo.InvariantCulture) + "  " + what);
+            }
+            if (lines.Count > 20) { int more = lines.Count - 20; lines = lines.Take(20).ToList(); lines.Add("+" + more + (more > 1 ? " autres" : " autre")); }
+            return lines;
+        }
+
+        // ------------------------------------------------------------ musique en cours (phase 3)
+
+        // Nom lisible de l'application d'une session media, d'apres son identifiant (AUMID ou executable).
+        public static string MediaAppName(string aumid)
+        {
+            var a = (aumid ?? "").ToLowerInvariant();
+            string[][] known = { new[] { "spotify", "Spotify" }, new[] { "deezer", "Deezer" }, new[] { "chrome", "Chrome" }, new[] { "msedge", "Edge" },
+                                 new[] { "firefox", "Firefox" }, new[] { "brave", "Brave" }, new[] { "opera", "Opera" }, new[] { "vivaldi", "Vivaldi" },
+                                 new[] { "vlc", "VLC" }, new[] { "zunemusic", "Lecteur multimédia" }, new[] { "soundcloud", "SoundCloud" }, new[] { "tidal", "Tidal" } };
+            foreach (var k in known) if (a.Contains(k[0])) return k[1];
+            var n = aumid ?? "";
+            int bang = n.LastIndexOf('!');
+            if (bang >= 0) n = n.Substring(bang + 1);
+            // Dernier segment sans extension, sans l'API de chemins (elle leve sur un caractere interdit).
+            n = n.Replace('/', '\\').Split('\\').Last();
+            int dot = n.LastIndexOf('.');
+            if (dot > 0) n = n.Substring(0, dot);
+            return n.Length == 0 ? "lecteur" : Visible(n.Length > 30 ? n.Substring(0, 30) : n);
+        }
+
+        // Ligne de la musique en cours : "titre — artiste", l'un ou l'autre seul s'il manque.
+        public static string MediaLine(string title, string artist)
+        {
+            var t = (title ?? "").Trim(); var a = (artist ?? "").Trim();
+            if (t.Length == 0) return a.Length == 0 ? "lecture en cours" : a;
+            return a.Length == 0 ? t : t + " — " + a;
+        }
+
         // Les "max" premieres lignes d'un texte, et le nombre de lignes au-dela (0 si tout tient).
         public static string[] Head(string text, int max, out int more)
         {

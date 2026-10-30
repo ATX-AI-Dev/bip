@@ -109,6 +109,7 @@ namespace ClaudeNotch
         // Phase 3 : fichier de la capture rapide (Ctrl+Alt+B), et jour ou le bilan du matin a ete masque.
         public string CapturePath = @"D:\Obsidian\ideation\inbox.md";
         public string BriefHiddenOn = "";
+        public bool PauseMusic = true;   // musique en pause pendant les appels (reprise a la fin)
 
         public Config(string path)
         {
@@ -127,6 +128,7 @@ namespace ClaudeNotch
                     else if (k == "reply") { int m; if (int.TryParse(v, out m) && ReplyChoices.Contains(m)) ReplyMinutes = m; }
                     else if (k == "capture" && v.Length > 0) CapturePath = v;
                     else if (k == "brief") BriefHiddenOn = v;
+                    else if (k == "music") PauseMusic = v != "0";
                 }
             }
             catch { }
@@ -141,7 +143,8 @@ namespace ClaudeNotch
                                          "autodnd=" + (AutoDnd ? "1" : "0") + Environment.NewLine +
                                          "reply=" + ReplyMinutes + Environment.NewLine +
                                          "capture=" + CapturePath + Environment.NewLine +
-                                         "brief=" + BriefHiddenOn + Environment.NewLine);
+                                         "brief=" + BriefHiddenOn + Environment.NewLine +
+                                         "music=" + (PauseMusic ? "1" : "0") + Environment.NewLine);
             }
             catch { }
         }

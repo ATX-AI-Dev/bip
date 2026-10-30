@@ -12,13 +12,17 @@ if not exist "%FW%\csc.exe" (
 )
 set "CSC=%FW%\csc.exe"
 set "WPF=%FW%\WPF"
+rem Musique en cours (Media.cs) : metadonnees WinRT livrees avec Windows, toujours sans SDK.
+set "WMD=%WINDIR%\System32\WinMetadata"
 
 "%CSC%" /nologo /target:winexe /optimize+ /warn:1 ^
   /out:"%~dp0ClaudeNotch.exe" ^
   /r:System.dll /r:System.Core.dll /r:System.Xaml.dll ^
   /r:"%WPF%\WindowsBase.dll" /r:"%WPF%\PresentationCore.dll" /r:"%WPF%\PresentationFramework.dll" ^
+  /r:"%FW%\System.Runtime.WindowsRuntime.dll" /r:"%FW%\System.Runtime.dll" ^
+  /r:"%WMD%\Windows.Foundation.winmd" /r:"%WMD%\Windows.Media.winmd" /r:"%WMD%\Windows.Storage.winmd" ^
   "%~dp0src\App.cs" "%~dp0src\Json.cs" "%~dp0src\Model.cs" "%~dp0src\NotchWindow.cs" "%~dp0src\Bip.cs" "%~dp0src\Version.cs" ^
-  "%~dp0src\Audit.cs" "%~dp0src\Rules.cs" "%~dp0src\Report.cs" "%~dp0src\Agents.cs" "%~dp0src\Logic.cs"
+  "%~dp0src\Audit.cs" "%~dp0src\Rules.cs" "%~dp0src\Report.cs" "%~dp0src\Agents.cs" "%~dp0src\Logic.cs" "%~dp0src\Media.cs"
 if errorlevel 1 (
   echo.
   echo Compilation de ClaudeNotch echouee.
