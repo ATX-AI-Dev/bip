@@ -9,6 +9,7 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 - Agendas lus par Logres sur `.178` par leur adresse iCal secrète (décision de Ludo, 30/10/2026 ; contrat `docs/CONTRAT-BIP-AGENDA.md` de Logres) ; les adresses ne quittent jamais `.178`.
 - `bip agenda` : reçoit du collecteur la réponse brute du relevé (base64 sur l'entrée standard ; PowerShell 7 réécrirait les dates), revalide l'agenda et l'écrit dans `state\agenda.json`.
 - Encoche repliée : réunion en cours ou prochaine du jour dans les 2 h ; entrouverture 5 min avant (une fois) ; section « Aujourd'hui » avec **Rejoindre** (Teams, Meet, Zoom) ; bilan du matin ; état des agendas et « ne pas déranger pendant les réunions » (désactivé par défaut).
+- `bip agenda --vu` : Logres n'envoie l'agenda que lorsqu'il change ; le collecteur dit « rien de neuf » toutes les 5 min, ce qui rafraîchit la date de réception (sans cela, l'agenda était jugé périmé au bout de 30 min). Défaut trouvé à l'usage le 03/11/2026.
 - 13 tests (207 au total).
 
 ### Phase 3 « compagnon » : quotidien (capture rapide, bilan du matin, musique)

@@ -27,7 +27,7 @@ static class BipCli
             return 0;
         }
         if (first == "info") return Info(args);
-        if (first == "agenda") return AgendaCmd();
+        if (first == "agenda") return AgendaCmd(args);
         string command = first == "run" ? ClaudeNotch.Logic.UnwrapCommand(RawAfterRun(), File.Exists) : "";
         if (command.Length == 0)
         {
@@ -36,7 +36,7 @@ static class BipCli
             Console.WriteLine("  bip run <commande>     ex. : bip run npm run build");
             Console.WriteLine("  bip info [--source nom] [--priorite 2|3] [--duree secondes] \"titre\" [\"texte\"]");
             Console.WriteLine("                         afficher une info dans l'encoche (canal Bip Connect)");
-            Console.WriteLine("  bip agenda             (collecteur de Logres) agenda en base64 sur l'entree standard");
+            Console.WriteLine("  bip agenda [--vu]      (collecteur de Logres) agenda en base64 sur l'entree standard ; --vu : agenda inchange, date de reception rafraichie");
             Console.WriteLine("  bip --version");
             return first == "" || first == "help" || first == "-h" || first == "--help" ? 0 : 2;
         }
@@ -134,18 +134,30 @@ static class BipCli
     // bip agenda : appele par le collecteur de Logres (docs/CONTRAT-BIP-AGENDA.md). Entree standard : la reponse brute du releve,
     // en base64 (UTF-8). Seul le champ "agenda" est garde, revalide (AgendaLogic.Parse), puis ecrit dans stategenda.json avec
     // l'heure de reception ; l'encoche le relit. Code de retour : 0 accepte, 1 refuse (illisible ou hors contrat).
-    static int AgendaCmd()
+    // bip agenda --vu : Logres n'envoie l'agenda que lorsqu'il change ; le collecteur dit ici « rien de neuf, Logres repond » toutes
+    // les 5 min, ce qui rafraichit la date de reception (sans elle, l'agenda serait juge perime au bout de 30 min sans changement).
+    // Code 1 si aucun agenda valide n'est enregistre : le collecteur le redemande alors en entier.
+    static int AgendaCmd(string[] args)
     {
         try
         {
-            string b64 = Console.In.ReadToEnd().Trim();
-            if (b64.Length == 0 || b64.Length > 2 * 1024 * 1024) { Console.Error.WriteLine("bip agenda : entree vide ou trop grande"); return 1; }
-            var root = ClaudeNotch.Json.Obj(ClaudeNotch.Json.Parse(new UTF8Encoding(false, true).GetString(Convert.FromBase64String(b64))));
-            var agenda = ClaudeNotch.Json.Get(root, "agenda");
+            string file = Path.Combine(Root, "state", "agenda.json");
+            object agenda;
+            if (args.Length > 1 && args[1] == "--vu")
+            {
+                if (!File.Exists(file)) { Console.Error.WriteLine("bip agenda : aucun agenda enregistre"); return 1; }
+                agenda = ClaudeNotch.Json.Get(ClaudeNotch.Json.Obj(ClaudeNotch.Json.Parse(File.ReadAllText(file, Encoding.UTF8))), "agenda");
+            }
+            else
+            {
+                string b64 = Console.In.ReadToEnd().Trim();
+                if (b64.Length == 0 || b64.Length > 2 * 1024 * 1024) { Console.Error.WriteLine("bip agenda : entree vide ou trop grande"); return 1; }
+                var root = ClaudeNotch.Json.Obj(ClaudeNotch.Json.Parse(new UTF8Encoding(false, true).GetString(Convert.FromBase64String(b64))));
+                agenda = ClaudeNotch.Json.Get(root, "agenda");
+            }
             if (ClaudeNotch.AgendaLogic.Parse(agenda) == null) { Console.Error.WriteLine("bip agenda : agenda hors contrat, ignore"); return 1; }
             var doc = new System.Collections.Generic.Dictionary<string, object>
                 { { "recu", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture) }, { "agenda", agenda } };
-            string file = Path.Combine(Root, "state", "agenda.json");
             Directory.CreateDirectory(Path.GetDirectoryName(file));
             // Ecriture a cote puis remplacement : l'encoche ne lit jamais un fichier a moitie ecrit.
             string tmp = file + ".tmp";
