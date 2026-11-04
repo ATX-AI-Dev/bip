@@ -122,7 +122,7 @@ namespace ClaudeNotch
             }
             Console.WriteLine();
             Console.WriteLine(rank == 0 ? "=> encoche au repos" :
-                rank <= 5 ? "=> " + rank + " Bip" : "=> 5 Bip + " + (rank - 5));
+                rank <= 5 ? "=> " + rank + " Rinel" : "=> 5 Rinel + " + (rank - 5));
         }
     }
 

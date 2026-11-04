@@ -143,7 +143,7 @@ namespace ClaudeNotch
         // Pas un seul guillemet double dans le modele : attributs et chaines entre apostrophes.
         const string Template = @"<!doctype html>
 <html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>
-<title>Bip — journal d'audit</title>
+<title>Rinel — journal d'audit</title>
 <style>
 :root{--bg:#f6f6f4;--card:#fff;--ink:#141414;--muted:#6b6b70;--line:#e6e6e2;--soft:#f0f0ec;
  --green:#1f9d57;--red:#d0453a;--orange:#c27c0e;--blue:#2f6fd6;--purple:#7a52d6;--gray:#7d7d84;--yellow:#a8800a}
@@ -198,9 +198,9 @@ footer{color:var(--muted);padding:0 32px 32px;font-size:12px;line-height:1.6}
 @media (max-width:820px){.row,.agent .row{grid-template-columns:52px 1fr}.row .o{grid-column:1/-1}.row>div:nth-child(4),.row>div:nth-child(5){grid-column:auto}summary .meta{display:none}}
 </style></head><body>
 <header>
-<svg viewBox='0 0 32 32' aria-hidden='true'><path d='M24 16 L28.5 10.5' transform='rotate(-14 24 16)' fill='none' stroke='#3FD07F' stroke-width='3' stroke-linecap='round'/><rect x='7' y='11' width='18' height='14' rx='4' fill='#3FD07F'/><rect x='10' y='24' width='4' height='4' rx='1.2' fill='#3FD07F'/><rect x='18' y='24' width='4' height='4' rx='1.2' fill='#3FD07F'/><path d='M16 11 V6.5' fill='none' stroke='#3FD07F' stroke-width='1.8'/><ellipse cx='16' cy='5' rx='2.2' ry='2.2' fill='#3FD07F'/><path d='M11 18.8 Q13 15.8 15 18.8' fill='none' stroke='#141414' stroke-width='2.2' stroke-linecap='round'/><path d='M17 18.8 Q19 15.8 21 18.8' fill='none' stroke='#141414' stroke-width='2.2' stroke-linecap='round'/><path d='M14.5 21.2 Q16 22.8 17.5 21.2' fill='none' stroke='#141414' stroke-width='1.6' stroke-linecap='round'/></svg>
+<svg viewBox='0 0 32 32' aria-hidden='true'><path d='M12.2 10.6 C11 5.4 14.6 1.4 21.2 1.6 C19 3.6 18.4 6.6 19.8 10.6 Z' fill='#3FD07F'/><path d='M14 9.6 C14.2 6.6 16 4.4 18.6 3.2' fill='none' stroke='#000' stroke-opacity='.25' stroke-width='.8' stroke-linecap='round'/><g transform='rotate(-14 23.5 20)'><path d='M23.5 20 L27.6 15.6' fill='none' stroke='#3FD07F' stroke-width='2.8' stroke-linecap='round'/><g transform='rotate(-35 28.6 14.4)'><rect x='25.4' y='12.9' width='6.4' height='3' rx='1.5' fill='#F1E6C8'/><circle cx='25.9' cy='14.4' r='1.5' fill='#CDBB8A'/><circle cx='31.3' cy='14.4' r='1.5' fill='#CDBB8A'/></g></g><rect x='10' y='26.4' width='4.2' height='3.6' rx='1.3' fill='#3FD07F'/><rect x='17.8' y='26.4' width='4.2' height='3.6' rx='1.3' fill='#3FD07F'/><circle cx='16' cy='19' r='9' fill='#3FD07F'/><path d='M7.2 17 A9 9 0 0 1 24.8 17 Z' fill='#fff' fill-opacity='.30'/><rect x='6.6' y='16.2' width='18.8' height='1.9' rx='.95' fill='#000' fill-opacity='.42'/><path d='M10.6 21 Q12.4 18.4 14.2 21' stroke='#141414' stroke-width='2.1' stroke-linecap='round' fill='none'/><path d='M17.8 21 Q19.6 18.4 21.4 21' stroke='#141414' stroke-width='2.1' stroke-linecap='round' fill='none'/><path d='M13.6 23.6 Q16 26.4 18.4 23.6' stroke='#141414' stroke-width='1.7' stroke-linecap='round' fill='none'/></svg>
 <div><h1>Journal d'audit</h1>
-<div class='sub'>Ce que les agents ont fait sur ce poste, et qui l'a autorisé · {{DAYS}} derniers jours · généré le {{GENERATED}} par Bip v{{VERSION}}</div></div>
+<div class='sub'>Ce que les agents ont fait sur ce poste, et qui l'a autorisé · {{DAYS}} derniers jours · généré le {{GENERATED}} par Rinel v{{VERSION}}</div></div>
 </header>
 <div class='status {{STATUS_CLASS}}'>{{STATUS}}</div>
 <section class='tiles' id='tiles'></section>

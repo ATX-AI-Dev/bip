@@ -300,7 +300,7 @@ namespace ClaudeNotch
                 case 0:
                     Hop();
                     var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(520) };
-                    t.Tick += (s, e) => { t.Stop(); if (_state == BipState.Running || _state == BipState.Neutral) Float(); };
+                    t.Tick += (s, e) => { t.Stop(); RestoreLoops(); };
                     t.Start();
                     break;
                 case 1: Blink(); break;
@@ -318,12 +318,23 @@ namespace ClaudeNotch
             _faceIdle.BeginAnimation(OpacityProperty, Steps(new[] { 0, 60, 180, 240 }, new[] { 0.0, 1, 1, 0 }));
         }
 
-        // Le bras s'agite deux fois, puis retrouve sa position de repos.
+        // Le bras s'agite deux fois, puis les mouvements de l'etat reprennent. Seulement quand le bras
+        // est dresse : au repos et en erreur il est rabattu, il ne saute pas.
         void Wave()
         {
-            if (_state == BipState.Waiting || _state == BipState.Neutral) return;   // il s'agite deja
-            _armRotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-10, 12, Ms(180))
-                { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), BeginTime = TimeSpan.FromMilliseconds(100), FillBehavior = FillBehavior.Stop });
+            if (_state == BipState.Waiting || _state == BipState.Neutral || _state == BipState.Idle || _state == BipState.Error) return;
+            var wave = new DoubleAnimation(-10, 12, Ms(180))
+                { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), BeginTime = TimeSpan.FromMilliseconds(100), FillBehavior = FillBehavior.Stop };
+            wave.Completed += (s, e) => RestoreLoops();
+            _armRotate.BeginAnimation(RotateTransform.AngleProperty, wave);
+        }
+
+        // Relance les boucles de l'etat courant (flottement, oscillations) apres un saut ou un signe.
+        void RestoreLoops()
+        {
+            if (!IsLoaded) return;
+            if (_state == BipState.Running) { Float(); Sway(1600, 4, -6, -6, 8); }
+            else if (_state == BipState.Neutral) { Float(); Sway(1600, 0, 0, -5, 7); Hello(); }
         }
 
         static DoubleAnimationUsingKeyFrames Steps(int[] ms, double[] v)
