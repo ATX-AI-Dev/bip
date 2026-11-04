@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" role="img" aria-label="Rinel, Prêt">
+  <style>
+ .corps{transform-origin:16px 28px;animation:saut 3.6s ease-in-out infinite}
+ @keyframes saut{0%,70%,100%{transform:translateY(0) scale(1,1)}
+   74%{transform:translateY(0) scale(1.06,.9)}82%{transform:translateY(-6px) scale(.96,1.05)}
+   90%{transform:translateY(0) scale(1.08,.9)}95%{transform:translateY(0) scale(1,1)}}
+ .bras{transform-origin:23.5px 20px;transform:rotate(-14deg)}
+ .plume{transform-origin:16px 10px;animation:plume 3.6s ease-in-out infinite}
+ @keyframes plume{0%,70%,100%{transform:rotate(0)}82%{transform:rotate(14deg)}90%{transform:rotate(-8deg)}}
+</style>
+  <g class="trem"><g class="corps">
+    <g class="plume"><path d="M12.2 10.6 C11 5.4 14.6 1.4 21.2 1.6 C19 3.6 18.4 6.6 19.8 10.6 Z" fill="#3FD07F"/><path d="M14 9.6 C14.2 6.6 16 4.4 18.6 3.2" fill="none" stroke="#000" stroke-opacity=".25" stroke-width=".8" stroke-linecap="round"/></g>
+    <g class="bras" transform="rotate(0 23.5 20)"><path d="M23.5 20 L27.6 15.6" fill="none" stroke="#3FD07F" stroke-width="2.8" stroke-linecap="round"/><g transform="rotate(-35 28.6 14.4)"><rect x="25.4" y="12.9" width="6.4" height="3" rx="1.5" fill="#F1E6C8"/><circle cx="25.9" cy="14.4" r="1.5" fill="#CDBB8A"/><circle cx="31.3" cy="14.4" r="1.5" fill="#CDBB8A"/></g></g>
+    <rect x="10" y="26.4" width="4.2" height="3.6" rx="1.3" fill="#3FD07F"/>
+    <rect x="17.8" y="26.4" width="4.2" height="3.6" rx="1.3" fill="#3FD07F"/>
+    <circle cx="16" cy="19" r="9" fill="#3FD07F"/>
+    <path d="M7.2 17 A9 9 0 0 1 24.8 17 Z" fill="#fff" fill-opacity=".30"/>
+    <rect x="6.6" y="16.2" width="18.8" height="1.9" rx=".95" fill="#000" fill-opacity=".42"/>
+    <path d="M10.6 21 Q12.4 18.4 14.2 21" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:2.1"/><path d="M17.8 21 Q19.6 18.4 21.4 21" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:2.1"/><path d="M13.6 23.6 Q16 26.4 18.4 23.6" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:1.7"/>
+  </g></g>
+  
+</svg>

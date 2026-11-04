@@ -460,7 +460,7 @@ namespace ClaudeNotch
             if (r.Rule)
             {
                 r.Decision = r.Dec == "retiree" ? "règle retirée" : "règle ajoutée";
-                r.Via = "toi, dans Bip";
+                r.Via = "toi, dans Rinel";
                 r.Outcome = "—";
                 return;
             }
@@ -468,9 +468,9 @@ namespace ClaudeNotch
             if (r.Result == "refus-auto") { r.Decision = "refusé"; r.Via = "mode auto"; r.Outcome = "—"; return; }
             switch (r.Dec)
             {
-                case "allow":  r.Decision = "autorisé"; r.Via = "toi, dans Bip"; return;
-                case "always": r.Decision = "autorisé (+ règle de session)"; r.Via = "toi, dans Bip"; return;
-                case "deny":   r.Decision = "refusé"; r.Via = "toi, dans Bip"; return;
+                case "allow":  r.Decision = "autorisé"; r.Via = "toi, dans Rinel"; return;
+                case "always": r.Decision = "autorisé (+ règle de session)"; r.Via = "toi, dans Rinel"; return;
+                case "deny":   r.Decision = "refusé"; r.Via = "toi, dans Rinel"; return;
             }
             if (r.Asked)
             {

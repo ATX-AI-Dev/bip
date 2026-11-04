@@ -42,7 +42,7 @@ namespace ClaudeNotch
                 titles.TryGetValue(g.Key, out title);
                 sessions[g.Key] = new Dictionary<string, object> { { "t", Logic.Visible(title ?? "") }, { "p", dir == null ? "—" : Logic.Visible(Session.NameOf(dir)) } };
             }
-            sessions["bip"] = new Dictionary<string, object> { { "t", "Règles créées par Bip" }, { "p", "" } };
+            sessions["bip"] = new Dictionary<string, object> { { "t", "Règles créées par Rinel" }, { "p", "" } };
 
             string status = broken == null
                 ? "Chaîne d'empreintes intacte · " + count.ToString("N0", CultureInfo.GetCultureInfo("fr-FR")) + " évènements vérifiés"

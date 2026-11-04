@@ -1,4 +1,6 @@
-// Bip, la mascotte de ClaudeNotch (kit design/bip-mascotte, tokens.json).
+// Rinel, la mascotte de ClaudeNotch (kit design/rinel-mascotte, tokens.json) : Herve de Rinel,
+// chevalier de la Table Ronde et cartographe, tout rond, casque a plume, parchemin sous le bras.
+// La classe s'appelle encore Bip dans le code (nom technique conserve).
 // Portage en code du BipControl livre en XAML : le projet se compile sans XAML,
 // avec le csc du .NET Framework (C# 5). Geometrie, couleurs, mouvements et durees
 // sont ceux du kit, a l'identique.
@@ -33,17 +35,19 @@ namespace ClaudeNotch
             { BipState.Neutral, Hex(0xDAD6CF) },   // blanc casse
         };
         static readonly Brush Face = Frozen(Hex(0x141414)), FaceIdle = Frozen(Hex(0x161616)), BadgeFill = Frozen(Hex(0xFFC93D));
+        static readonly Brush Parch = Frozen(Hex(0xF1E6C8)), ParchEnd = Frozen(Hex(0xCDBB8A));
+        static readonly Brush Helmet = Frozen(Color.FromArgb(0x4D, 255, 255, 255)), Brim = Frozen(Color.FromArgb(0x6B, 0, 0, 0)), Vein = Frozen(Color.FromArgb(0x40, 0, 0, 0));
         static readonly Random Rng = new Random();
 
         readonly SolidColorBrush _brush = new SolidColorBrush(StateColors[BipState.Idle]);
         readonly ScaleTransform _scale = new ScaleTransform();
         readonly RotateTransform _tilt = new RotateTransform();
         readonly TranslateTransform _shift = new TranslateTransform();
-        readonly ScaleTransform _ballScale = new ScaleTransform();
+        readonly ScaleTransform _plumeScale = new ScaleTransform(1, 1, 16, 10);
+        readonly RotateTransform _plumeRotate = new RotateTransform(0, 16, 10);
         readonly ScaleTransform _badgeScale = new ScaleTransform(0, 0, 26, 7.5);
-        readonly RotateTransform _armRotate = new RotateTransform(0, 24, 16);
-        readonly Canvas _antennaStraight, _antennaBent, _faceRunning, _faceWaiting, _faceReady, _faceError, _faceIdle, _badge;
-        readonly Path _arm;
+        readonly RotateTransform _armRotate = new RotateTransform(0, 23.5, 20);
+        readonly Canvas _plumeUp, _plumeLaid, _plumeDrooped, _faceRunning, _faceWaiting, _faceReady, _faceError, _faceIdle, _badge;
         readonly DispatcherTimer _waitTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
 
         BipState _state = BipState.Idle;
@@ -81,39 +85,46 @@ namespace ClaudeNotch
             root.RenderTransform = tg;
             Child = root;
 
-            // Corps et pieds
-            root.Children.Add(Rect(7, 11, 18, 14, 4, _brush));
-            root.Children.Add(Rect(10, 24, 4, 4, 1.2, _brush));
-            root.Children.Add(Rect(18, 24, 4, 4, 1.2, _brush));
+            // Plume (casque) : dressee (tous les etats sauf repos et erreur), couchee (repos), tombante (erreur)
+            _plumeUp = new Canvas();
+            _plumeUp.Children.Add(Shape("M12.2,10.6 C11,5.4 14.6,1.4 21.2,1.6 C19,3.6 18.4,6.6 19.8,10.6 Z", _brush));
+            _plumeUp.Children.Add(Line("M14,9.6 C14.2,6.6 16,4.4 18.6,3.2", 0.8, Vein));
+            var pg = new TransformGroup();
+            pg.Children.Add(_plumeScale);
+            pg.Children.Add(_plumeRotate);
+            _plumeUp.RenderTransform = pg;
+            root.Children.Add(_plumeUp);
+            _plumeLaid = new Canvas { Opacity = 0 };
+            _plumeLaid.Children.Add(Shape("M11.6,10.8 C13,8 18,7.4 22.4,9.8 C19,9.6 16,10 13.6,11.2 Z", _brush));
+            root.Children.Add(_plumeLaid);
+            _plumeDrooped = new Canvas { Opacity = 0 };
+            _plumeDrooped.Children.Add(Shape("M12.6,10.8 C10,9 7.4,9.4 5.2,12.6 C8.4,11.8 10.6,12.2 13.8,11.4 Z", _brush));
+            root.Children.Add(_plumeDrooped);
 
-            // Antenne droite (tous les etats sauf inactif), boule gonflee en attente
-            _antennaStraight = new Canvas();
-            _antennaStraight.Children.Add(Line("M16,11 V6.5", 1.8, _brush));
-            var ball = Ell(13.8, 2.8, 4.4, 4.4, _brush);
-            ball.RenderTransformOrigin = new Point(0.5, 0.5);
-            ball.RenderTransform = _ballScale;
-            _antennaStraight.Children.Add(ball);
-            root.Children.Add(_antennaStraight);
+            // Bras et parchemin du cartographe (derriere le corps)
+            var armGroup = new Canvas { RenderTransform = _armRotate };
+            armGroup.Children.Add(Line("M23.5,20 L27.6,15.6", 2.8, _brush));
+            var scroll = new Canvas { RenderTransform = new RotateTransform(-35, 28.6, 14.4) };
+            scroll.Children.Add(Rect(25.4, 12.9, 6.4, 3, 1.5, Parch));
+            scroll.Children.Add(Ell(24.4, 12.9, 3, 3, ParchEnd));
+            scroll.Children.Add(Ell(29.8, 12.9, 3, 3, ParchEnd));
+            armGroup.Children.Add(scroll);
+            root.Children.Add(armGroup);
 
-            // Antenne pliee (inactif)
-            _antennaBent = new Canvas { Opacity = 0 };
-            _antennaBent.Children.Add(Line("M16,11 Q16,7.5 19.5,7.8", 1.8, _brush));
-            _antennaBent.Children.Add(Ell(18.6, 6, 4, 4, _brush));
-            root.Children.Add(_antennaBent);
-
-            // Bras leve (attente)
-            _arm = Line("M24,16 L28.5,10.5", 3, _brush);
-            _arm.Opacity = 0;
-            _arm.RenderTransform = _armRotate;
-            root.Children.Add(_arm);
+            // Pieds, corps rond, casque (calotte claire + bandeau sombre)
+            root.Children.Add(Rect(10, 26.4, 4.2, 3.6, 1.3, _brush));
+            root.Children.Add(Rect(17.8, 26.4, 4.2, 3.6, 1.3, _brush));
+            root.Children.Add(Ell(7, 10, 18, 18, _brush));
+            root.Children.Add(Shape("M7.2,17 A9,9 0 0 1 24.8,17 Z", Helmet));
+            root.Children.Add(Rect(6.6, 16.2, 18.8, 1.9, 0.95, Brim));
 
             // Visages : un seul visible, fondu croise de 150 ms
-            _faceRunning = Group(Rect(11, 16.9, 4, 2.2, 1.1, Face), Rect(17, 16.9, 4, 2.2, 1.1, Face));
-            _faceWaiting = Group(Ell(11, 15, 4, 4, Face), Ell(17, 15, 4, 4, Face), Ell(14.6, 19.9, 2.8, 3.2, Face));
-            _faceReady = Group(Line("M11,18.8 Q13,15.8 15,18.8", 2.2, Face), Line("M17,18.8 Q19,15.8 21,18.8", 2.2, Face),
-                               Line("M14.5,21.2 Q16,22.8 17.5,21.2", 1.6, Face));
-            _faceError = Group(Rect(11.5, 17, 3, 3, 1.5, Face), Rect(17.5, 17, 3, 3, 1.5, Face));
-            _faceIdle = Group(Line("M11,18 Q13,20 15,18", 1.8, FaceIdle), Line("M17,18 Q19,20 21,18", 1.8, FaceIdle));
+            _faceRunning = Group(Line("M10.6,20.6 H14.2", 2, Face), Line("M17.8,20.6 H21.4", 2, Face), Line("M14.6,24.6 H17.4", 1.6, Face));
+            _faceWaiting = Group(Ell(10.5, 18.5, 3.8, 3.8, Face), Ell(17.7, 18.5, 3.8, 3.8, Face), Ell(14.3, 23, 3.4, 4, Face));
+            _faceReady = Group(Line("M10.6,21 Q12.4,18.4 14.2,21", 2.1, Face), Line("M17.8,21 Q19.6,18.4 21.4,21", 2.1, Face),
+                               Line("M13.6,23.6 Q16,26.4 18.4,23.6", 1.7, Face));
+            _faceError = Group(Ell(11.5, 20.1, 2.2, 2.2, Face), Ell(18.3, 20.1, 2.2, 2.2, Face), Line("M14.4,25.2 Q16,24 17.6,25.2", 1.5, Face));
+            _faceIdle = Group(Line("M10.6,20.6 Q12.4,22.2 14.2,20.6", 1.8, FaceIdle), Line("M17.8,20.6 Q19.6,22.2 21.4,20.6", 1.8, FaceIdle));
             foreach (var f in new[] { _faceRunning, _faceWaiting, _faceReady, _faceError, _faceIdle }) root.Children.Add(f);
 
             // Pastille "!" (erreur)
@@ -139,14 +150,18 @@ namespace ClaudeNotch
             Fade(_faceError, to == BipState.Error ? 1 : 0, face);
             Fade(_faceIdle, to == BipState.Idle ? 1 : 0, face);
 
-            Fade(_antennaStraight, to == BipState.Idle ? 0 : 1, animate ? 400 : 0);
-            Fade(_antennaBent, to == BipState.Idle ? 1 : 0, animate ? 400 : 0);
-            var ballAnim = new DoubleAnimation(to == BipState.Waiting ? 2.8 / 2.2 : 1.0, Ms(animate ? 200 : 0))
+            Fade(_plumeUp, to == BipState.Idle || to == BipState.Error ? 0 : 1, animate ? 400 : 0);
+            Fade(_plumeLaid, to == BipState.Idle ? 1 : 0, animate ? 400 : 0);
+            Fade(_plumeDrooped, to == BipState.Error ? 1 : 0, animate ? 400 : 0);
+            var plumeAnim = new DoubleAnimation(to == BipState.Waiting ? 1.2 : 1.0, Ms(animate ? 200 : 0))
                 { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 } };
-            _ballScale.BeginAnimation(ScaleTransform.ScaleXProperty, ballAnim);
-            _ballScale.BeginAnimation(ScaleTransform.ScaleYProperty, ballAnim);
+            _plumeScale.BeginAnimation(ScaleTransform.ScaleXProperty, plumeAnim);
+            _plumeScale.BeginAnimation(ScaleTransform.ScaleYProperty, plumeAnim);
 
-            Fade(_arm, to == BipState.Waiting ? 1 : 0, animate ? (to == BipState.Waiting ? 200 : 150) : 0);
+            // Position de repos du bras (le parchemin) selon l'etat
+            double rest = to == BipState.Running ? 10 : to == BipState.Ready ? -14 : to == BipState.Error ? 60 : to == BipState.Idle ? 55 : 0;
+            _armRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+            _armRotate.Angle = rest;
 
             Fade(_badge, to == BipState.Error ? 1 : 0, animate ? 150 : 0);
             var badgeAnim = new DoubleAnimation(to == BipState.Error ? 1 : 0, Ms(animate ? 200 : 0))
@@ -163,8 +178,13 @@ namespace ClaudeNotch
                     _waitTimer.Start();
                     break;
                 case BipState.Running:
+                    Float();
+                    Sway(1600, 4, -6, -6, 8);
+                    break;
                 case BipState.Neutral:
                     Float();
+                    Sway(1600, 0, 0, -5, 7);
+                    Hello();
                     break;
                 case BipState.Ready:
                     if (animate && from != BipState.Ready) Hop();
@@ -186,6 +206,29 @@ namespace ClaudeNotch
             _tilt.BeginAnimation(RotateTransform.AngleProperty, null);
             _shift.BeginAnimation(TranslateTransform.YProperty, null);
             _armRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+            _plumeRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+        }
+
+        // Bras (parchemin) et plume qui oscillent doucement, en degres.
+        void Sway(double halfMs, double armFrom, double armTo, double plumeFrom, double plumeTo)
+        {
+            var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+            if (armFrom != armTo)
+                _armRotate.BeginAnimation(RotateTransform.AngleProperty, Loop(new DoubleAnimation(armFrom, armTo, Ms(halfMs))
+                    { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease }, Fps));
+            _plumeRotate.BeginAnimation(RotateTransform.AngleProperty, Loop(new DoubleAnimation(plumeFrom, plumeTo, Ms(halfMs * 2))
+                { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease }, Fps));
+        }
+
+        // Coucou de l'encoche vide : deux signes du bras, une pause (cycle 3,2 s).
+        void Hello()
+        {
+            var k = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = Ms(3200) };
+            int[] t = { 0, 256, 576, 896, 1216, 1472, 3200 };
+            double[] v = { 0, -16, 12, -16, 12, 0, 0 };
+            for (int n = 0; n < t.Length; n++) k.KeyFrames.Add(new LinearDoubleKeyFrame(v[n], Kt(t[n])));
+            Timeline.SetDesiredFrameRate(k, Fps);
+            _armRotate.BeginAnimation(RotateTransform.AngleProperty, k);
         }
 
         // ---- En attente : respiration qui accelere, bras qui s'agite, tremblement
@@ -210,6 +253,7 @@ namespace ClaudeNotch
             _scale.BeginAnimation(ScaleTransform.ScaleXProperty, sx);
             _scale.BeginAnimation(ScaleTransform.ScaleYProperty, sy);
             _armRotate.BeginAnimation(RotateTransform.AngleProperty, arm);
+            _plumeRotate.BeginAnimation(RotateTransform.AngleProperty, Loop(new DoubleAnimation(-8, 10, half) { AutoReverse = true, EasingFunction = ease }, Fps));
         }
 
         void OnWaitTick(object sender, EventArgs e)
@@ -274,13 +318,12 @@ namespace ClaudeNotch
             _faceIdle.BeginAnimation(OpacityProperty, Steps(new[] { 0, 60, 180, 240 }, new[] { 0.0, 1, 1, 0 }));
         }
 
-        // Le bras se leve et s'agite deux fois.
+        // Le bras s'agite deux fois, puis retrouve sa position de repos.
         void Wave()
         {
-            if (_state == BipState.Waiting) return;   // il s'agite deja
-            _arm.BeginAnimation(OpacityProperty, Steps(new[] { 0, 120, 900, 1050 }, new[] { 0.0, 1, 1, 0 }));
+            if (_state == BipState.Waiting || _state == BipState.Neutral) return;   // il s'agite deja
             _armRotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-10, 12, Ms(180))
-                { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), BeginTime = TimeSpan.FromMilliseconds(100) });
+                { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), BeginTime = TimeSpan.FromMilliseconds(100), FillBehavior = FillBehavior.Stop });
         }
 
         static DoubleAnimationUsingKeyFrames Steps(int[] ms, double[] v)
@@ -322,6 +365,11 @@ namespace ClaudeNotch
                 Data = Geometry.Parse(data), Stroke = stroke, StrokeThickness = thickness,
                 StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round
             };
+        }
+
+        static Path Shape(string data, Brush fill)
+        {
+            return new Path { Data = Geometry.Parse(data), Fill = fill };
         }
 
         static Canvas Group(params UIElement[] children)

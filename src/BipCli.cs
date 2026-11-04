@@ -23,7 +23,7 @@ static class BipCli
         string first = args.Length > 0 ? args[0].ToLowerInvariant() : "";
         if (first == "--version" || first == "version")
         {
-            Console.WriteLine("Bip v" + ClaudeNotch.AppVersion.Text);
+            Console.WriteLine("Rinel v" + ClaudeNotch.AppVersion.Text);
             return 0;
         }
         if (first == "info") return Info(args);
@@ -31,7 +31,7 @@ static class BipCli
         string command = first == "run" ? ClaudeNotch.Logic.UnwrapCommand(RawAfterRun(), File.Exists) : "";
         if (command.Length == 0)
         {
-            Console.WriteLine("Bip v" + ClaudeNotch.AppVersion.Text + " — suivre une commande longue dans l'encoche");
+            Console.WriteLine("Rinel v" + ClaudeNotch.AppVersion.Text + " — suivre une commande longue dans l'encoche");
             Console.WriteLine();
             Console.WriteLine("  bip run <commande>     ex. : bip run npm run build");
             Console.WriteLine("  bip info [--source nom] [--priorite 2|3] [--duree secondes] \"titre\" [\"texte\"]");

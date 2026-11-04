@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" role="img" aria-label="Rinel, Erreur">
+  <style>
+ .corps{transform-origin:16px 28px;transform:scale(1.04,.94);animation:aff .25s ease-out 1}
+ @keyframes aff{from{transform:scale(1,1)}to{transform:scale(1.04,.94)}}
+ .badge{transform-origin:26px 7.5px;animation:pop .2s cubic-bezier(.34,1.56,.64,1) 1}
+ @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+</style>
+  <g class="trem"><g class="corps">
+    <path d="M12.6 10.8 C10 9 7.4 9.4 5.2 12.6 C8.4 11.8 10.6 12.2 13.8 11.4 Z" fill="#8E96A3"/>
+    <g class="bras" transform="rotate(60 23.5 20)"><path d="M23.5 20 L27.6 15.6" fill="none" stroke="#8E96A3" stroke-width="2.8" stroke-linecap="round"/><g transform="rotate(-35 28.6 14.4)"><rect x="25.4" y="12.9" width="6.4" height="3" rx="1.5" fill="#F1E6C8"/><circle cx="25.9" cy="14.4" r="1.5" fill="#CDBB8A"/><circle cx="31.3" cy="14.4" r="1.5" fill="#CDBB8A"/></g></g>
+    <rect x="10" y="26.4" width="4.2" height="3.6" rx="1.3" fill="#8E96A3"/>
+    <rect x="17.8" y="26.4" width="4.2" height="3.6" rx="1.3" fill="#8E96A3"/>
+    <circle cx="16" cy="19" r="9" fill="#8E96A3"/>
+    <path d="M7.2 17 A9 9 0 0 1 24.8 17 Z" fill="#fff" fill-opacity=".30"/>
+    <rect x="6.6" y="16.2" width="18.8" height="1.9" rx=".95" fill="#000" fill-opacity=".42"/>
+    <circle cx="12.6" cy="21.2" r="1.1" fill="#141414"/><circle cx="19.4" cy="21.2" r="1.1" fill="#141414"/><path d="M14.4 25.2 Q16 24 17.6 25.2" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:1.5"/>
+  </g></g>
+  <g class="badge"><circle cx="26" cy="7.5" r="4.2" fill="#FFC93D"/><path d="M26 5.2 V8.1" stroke="#141414" stroke-width="1.6" stroke-linecap="round"/><circle cx="26" cy="9.9" r=".9" fill="#141414"/></g>
+</svg>

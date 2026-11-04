@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" role="img" aria-label="Rinel, En cours">
+  <style>
+ .corps{transform-origin:16px 28px;animation:flot 3.2s ease-in-out infinite}
+ @keyframes flot{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-2px) rotate(2deg)}}
+ .bras{transform-origin:23.5px 20px;animation:bras 1.6s ease-in-out infinite}
+ @keyframes bras{0%,100%{transform:rotate(4deg)}50%{transform:rotate(-6deg)}}
+ .plume{transform-origin:16px 10px;animation:plume 3.2s ease-in-out infinite}
+ @keyframes plume{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(8deg)}}
+</style>
+  <g class="trem"><g class="corps">
+    <g class="plume"><path d="M12.2 10.6 C11 5.4 14.6 1.4 21.2 1.6 C19 3.6 18.4 6.6 19.8 10.6 Z" fill="#F5A524"/><path d="M14 9.6 C14.2 6.6 16 4.4 18.6 3.2" fill="none" stroke="#000" stroke-opacity=".25" stroke-width=".8" stroke-linecap="round"/></g>
+    <g class="bras" transform="rotate(10 23.5 20)"><path d="M23.5 20 L27.6 15.6" fill="none" stroke="#F5A524" stroke-width="2.8" stroke-linecap="round"/><g transform="rotate(-35 28.6 14.4)"><rect x="25.4" y="12.9" width="6.4" height="3" rx="1.5" fill="#F1E6C8"/><circle cx="25.9" cy="14.4" r="1.5" fill="#CDBB8A"/><circle cx="31.3" cy="14.4" r="1.5" fill="#CDBB8A"/></g></g>
+    <rect x="10" y="26.4" width="4.2" height="3.6" rx="1.3" fill="#F5A524"/>
+    <rect x="17.8" y="26.4" width="4.2" height="3.6" rx="1.3" fill="#F5A524"/>
+    <circle cx="16" cy="19" r="9" fill="#F5A524"/>
+    <path d="M7.2 17 A9 9 0 0 1 24.8 17 Z" fill="#fff" fill-opacity=".30"/>
+    <rect x="6.6" y="16.2" width="18.8" height="1.9" rx=".95" fill="#000" fill-opacity=".42"/>
+    <path d="M10.6 20.6 H14.2" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:2"/><path d="M17.8 20.6 H21.4" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:2"/><path d="M14.6 24.6 H17.4" style="stroke-linecap:round;fill:none;stroke:#141414;stroke-width:1.6"/>
+  </g></g>
+  
+</svg>

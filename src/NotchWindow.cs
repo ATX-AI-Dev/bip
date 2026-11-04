@@ -1,5 +1,5 @@
 // L'encoche : un bloc noir colle au bord haut de l'ecran principal, au centre, qui
-// se transforme selon ce qu'il montre (valeurs : design/bip-mascotte/tokens.json).
+// se transforme selon ce qu'il montre (valeurs : design/rinel-mascotte/tokens.json).
 //
 //   Trait       120 x 4      aucune session active
 //   Repliee     h 22         un Bip par session (5 max, puis "+N")   clics traversants
@@ -1755,9 +1755,9 @@ namespace ClaudeNotch
             p.Children.Add(Link("Journal d'audit", _reportError ?? "ce que les agents ont fait, et qui l'a autorisé", "↗", () => OpenReport(Audit.KeepDays)));
 
             var rules = Rules.Created();
-            p.Children.Add(Section("Règles créées par Bip"));
+            p.Children.Add(Section("Règles créées par Rinel"));
             if (rules.Count == 0)
-                p.Children.Add(new TextBlock { Text = "Aucune pour l'instant. Bip en propose après 5 autorisations de la même commande.", FontSize = 12, Foreground = Muted,
+                p.Children.Add(new TextBlock { Text = "Aucune pour l'instant. Rinel en propose après 5 autorisations de la même commande.", FontSize = 12, Foreground = Muted,
                                                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 0, 8, 4) });
             foreach (var c in rules)
             {
@@ -1771,7 +1771,7 @@ namespace ClaudeNotch
 
             // Pied : version a gauche, actions secondaires a droite.
             var foot = new DockPanel { Margin = new Thickness(0, 10, 0, 0), LastChildFill = false };
-            foot.Children.Add(new TextBlock { Text = "Bip v" + AppVersion.Text, FontSize = 11.5, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+            foot.Children.Add(new TextBlock { Text = "Rinel v" + AppVersion.Text, FontSize = 11.5, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
             var actions = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(actions, Dock.Right);
             actions.Children.Add(Small("Dossier d'état", () => { try { System.Diagnostics.Process.Start("explorer.exe", Program.StateDir); } catch { } }));
@@ -1780,7 +1780,7 @@ namespace ClaudeNotch
                 try { foreach (var f in Directory.GetFiles(Program.StateDir)) File.Delete(f); } catch { }   // etats et sous-agents
                 Refresh();
             }));
-            actions.Children.Add(Small("Quitter Bip", () =>
+            actions.Children.Add(Small("Quitter Rinel", () =>
             {
                 // Les demandes en attente repartent vers Claude.
                 foreach (var q in _pending.ToList()) ThreadPool.QueueUserWorkItem(_ => q.Reply(""));
@@ -1847,9 +1847,9 @@ namespace ClaudeNotch
 
         // ------------------------------------------------------------ encoche vide
 
-        static readonly string[] Morning = { "Bonjour ! C'est Bip.", "Bonjour, Bip au rapport.", "Salut ! Bip veille sur tes sessions." };
-        static readonly string[] Afternoon = { "Salut, c'est Bip !", "Bip au rapport : tout est calme.", "Coucou, Bip est là." };
-        static readonly string[] Evening = { "Bonsoir ! C'est Bip.", "Bonsoir, Bip veille encore.", "Bip est là, tout est calme." };
+        static readonly string[] Morning = { "Bonjour ! C'est Rinel.", "Bonjour, Rinel au rapport.", "Salut ! Rinel veille sur tes sessions." };
+        static readonly string[] Afternoon = { "Salut, c'est Rinel !", "Rinel au rapport : tout est calme.", "Coucou, Rinel est là." };
+        static readonly string[] Evening = { "Bonsoir ! C'est Rinel.", "Bonsoir, Rinel veille encore.", "Rinel est là, tout est calme." };
         static readonly Random Rng = new Random();
         DispatcherTimer _typing;
         TextBlock _dndText;
@@ -1937,7 +1937,7 @@ namespace ClaudeNotch
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var bip = new Bip { Width = 40, Height = 40, State = BipState.Idle, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, ToolTip = "Bip" };
+            var bip = new Bip { Width = 40, Height = 40, State = BipState.Idle, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, ToolTip = "Rinel" };
             bip.Loaded += (s, e) => Dispatcher.BeginInvoke((Action)(() => bip.State = BipState.Neutral), DispatcherPriority.Background);
             bip.MouseLeftButtonDown += (s, e) => e.Handled = true;
             bip.MouseLeftButtonUp += (s, e) => { e.Handled = true; bip.Poke(); };

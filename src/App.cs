@@ -50,7 +50,7 @@ namespace ClaudeNotch
                 Console.WriteLine();
                 try
                 {
-                    if (cmd == "--version") Console.WriteLine("Bip v" + AppVersion.Text);
+                    if (cmd == "--version") Console.WriteLine("Rinel v" + AppVersion.Text);
                     else if (cmd == "--verify-audit")
                     {
                         int n;
@@ -335,7 +335,7 @@ namespace ClaudeNotch
             string hook = Path.Combine(Program.Root, HOOK_NAME);
             if (hook.IndexOfAny(new[] { '"', '%', '^', '&' }) >= 0 || hook.Any(c => c > 127))
             {
-                Console.WriteLine("Antigravity non branché : le chemin de Bip contient un caractère que cmd.exe interpréterait (" + hook + ").");
+                Console.WriteLine("Antigravity non branché : le chemin de Rinel contient un caractère que cmd.exe interpréterait (" + hook + ").");
                 return;
             }
             var cfg = File.Exists(AgyHooks) ? Json.Obj(Json.Parse(File.ReadAllText(AgyHooks, Encoding.UTF8))) : new Dictionary<string, object>();

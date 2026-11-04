@@ -1,12 +1,14 @@
 <div align="center">
 
-<img src="design/bip-mascotte/svg/bip-coucou.svg" width="96" alt="Bip fait coucou">
+<img src="design/rinel-mascotte/svg/rinel-coucou.svg" width="96" alt="Rinel fait coucou">
 
-# Bip
+# Rinel (ex-Bip)
 
 **L'encoche Claude Code pour Windows.**
-Un petit robot par session, collé en haut de l'écran : tu vois d'un coup d'œil qui travaille,
+Un petit chevalier par session, collé en haut de l'écran : tu vois d'un coup d'œil qui travaille,
 qui a fini et qui t'attend, et tu réponds sans changer de fenêtre.
+
+> La mascotte et le nom affiché sont désormais **Rinel** (Hervé de Rinel, Kaamelott). La commande reste `bip` (`bip run`, `bip info`, `bip agenda`) et le dossier de réglages ne change pas.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
 ![.NET Framework 4.x](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4)
@@ -91,7 +93,7 @@ détail des mesures est dans [`docs/CONCEPTION.md`](docs/CONCEPTION.md).
 
 ## Bip
 
-<img src="design/bip-mascotte/apercu-planche.png" alt="Les cinq états de Bip à 128, 40, 20 et 16 px">
+<img src="design/rinel-mascotte/apercu-planche.png" alt="Les cinq états de Rinel à 128, 40, 20 et 16 px">
 
 | État | Quand | Ce qu'il fait |
 |---|---|---|
@@ -102,7 +104,7 @@ détail des mesures est dans [`docs/CONCEPTION.md`](docs/CONCEPTION.md).
 | **Au repos** (gris foncé) | Session ouverte, rien demandé encore | Dort, antenne pliée |
 
 Chaque état se lit aussi sans la couleur (bras, pastille, antenne), même à 16 px.
-Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`design/bip-mascotte`](design/bip-mascotte).
+Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`design/rinel-mascotte`](design/rinel-mascotte).
 
 ## Fonctionnalités
 
@@ -340,7 +342,7 @@ src/
   Json.cs         lecture / écriture JSON
   Version.cs      numéro de version (vérifié par la release)
 tests/                 tests du journal d'audit (lancés aussi par la release)
-design/bip-mascotte/   kit de la mascotte (SVG, PNG, tokens.json, aperçu animé)
+design/rinel-mascotte/   kit de la mascotte (SVG, PNG, tokens.json, aperçu animé)
 docs/                  journal de conception et captures
 .github/workflows/     release automatique à chaque tag vX.Y.Z
 build.cmd · installer.cmd · desinstaller.cmd · CHANGELOG.md
@@ -373,7 +375,7 @@ sous-agents) et ce que l'encoche montrerait ; `notch.log` recueille les erreurs 
 
 [🇫🇷 Version française ↑](#bip) · **🇬🇧 English**
 
-**The Claude Code notch for Windows.** One little robot per session, docked at the top of your
+**The Claude Code notch for Windows.** One little knight per session, docked at the top of your
 screen: see at a glance who is working, who is done and who is waiting for you, and answer
 without switching windows. *The interface is in French.*
 
@@ -445,7 +447,7 @@ in [`docs/CONCEPTION.md`](docs/CONCEPTION.md) (in French).
 
 ### Meet Bip
 
-<img src="design/bip-mascotte/apercu-planche.png" alt="Bip's five states at 128, 40, 20 and 16 px">
+<img src="design/rinel-mascotte/apercu-planche.png" alt="Rinel's five states at 128, 40, 20 and 16 px">
 
 | State | When | What it does |
 |---|---|---|
@@ -456,7 +458,7 @@ in [`docs/CONCEPTION.md`](docs/CONCEPTION.md) (in French).
 | **Idle** (dark grey) | Session open, nothing asked yet | Sleeps, antenna folded |
 
 Every state also reads without colour (arm, badge, antenna), even at 16 px.
-The full kit (SVG, PNG, reference values, animated preview) is in [`design/bip-mascotte`](design/bip-mascotte).
+The full kit (SVG, PNG, reference values, animated preview) is in [`design/rinel-mascotte`](design/rinel-mascotte).
 
 ### Features
 
@@ -620,7 +622,7 @@ src/
   Json.cs         JSON reading / writing
   Version.cs      version number (checked by the release)
 tests/                 audit log tests (also run by the release)
-design/bip-mascotte/   mascot kit (SVG, PNG, tokens.json, animated preview)
+design/rinel-mascotte/   mascot kit (SVG, PNG, tokens.json, animated preview)
 docs/                  design journal and screenshots
 .github/workflows/     automatic release on every vX.Y.Z tag
 build.cmd · installer.cmd · desinstaller.cmd · CHANGELOG.md
