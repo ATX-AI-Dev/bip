@@ -57,9 +57,13 @@ Projet **séparé** : ClaudeVoyant n'est pas modifié.
   - Bash : **Autoriser / Refuser** seulement, pas de « Toujours autoriser ».
   - Autres outils : Autoriser / Refuser / Toujours autoriser (d'après les
     `permission_suggestions` de Claude Code).
-- **AskUserQuestion** : oui, par un hook `PreToolUse` sur `AskUserQuestion` qui
-  renvoie `updatedInput.answers`. Mécanisme hors de la doc officielle (mais
-  utilisé par coucou) : retour propre vers Claude en cas d'échec.
+- **AskUserQuestion** : oui, **en parallèle de Claude Desktop** (04/11/2026). Le même hook
+  `PermissionRequest` reçoit la question et renvoie `decision.behavior = allow` avec
+  `updatedInput.answers` ; Claude Code affiche sa propre boîte pendant que le hook tourne, la
+  première réponse (encoche ou Desktop) ferme l'autre. Vérifié sur une vraie question
+  (Claude Code 2.1.316, session en `bypassPermissions`) ; la doc officielle ne documente pas
+  ce cas. Avant, un hook `PreToolUse` bloquant retenait la question 10 min : Desktop
+  n'affichait rien entre-temps. Retour propre vers Claude en cas d'échec.
   - Gérés : choix unique, choix multiple, plusieurs questions par appel,
     réponse libre « Autre » (seul cas où l'encoche prend le clavier).
   - Non gérés : les aperçus visuels des options.

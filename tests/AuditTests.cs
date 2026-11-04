@@ -484,6 +484,22 @@ static class AuditTests
         }
         finally { try { Directory.Delete(Program.Root, true); } catch { } }
 
+        // Reponse a une question depuis l'encoche : decision PermissionRequest "allow" + entree d'origine et reponses.
+        {
+            var q = new Dictionary<string, object> { { "question", "Couleur ?" } };
+            var pq = new Pending { Kind = "ask", Payload = new Dictionary<string, object> {
+                { "tool_name", "AskUserQuestion" },
+                { "tool_input", new Dictionary<string, object> { { "questions", new object[] { q } } } } } };
+            var rep = Json.Obj(Json.Parse(Replies.Answers(pq, new Dictionary<string, string> { { "Couleur ?", "Rouge" } })));
+            var hso = Json.Obj(Json.Get(rep, "hookSpecificOutput"));
+            var dec = Json.Obj(Json.Get(hso, "decision"));
+            var upd = Json.Obj(Json.Get(dec, "updatedInput"));
+            Check("question : evenement PermissionRequest, allow", Json.Str(hso, "hookEventName") == "PermissionRequest" && Json.Str(dec, "behavior") == "allow");
+            Check("question : questions d'origine conservees, reponse indexee par le texte",
+                  Json.Arr(Json.Get(upd, "questions")).Length == 1 && Json.Str(Json.Obj(Json.Get(upd, "answers")), "Couleur ?") == "Rouge");
+            Check("question : plus de decision PreToolUse", Json.Get(hso, "permissionDecision") == null);
+        }
+
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");
         return _fail == 0 ? 0 : 1;
     }

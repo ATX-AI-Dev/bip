@@ -1,6 +1,7 @@
 // NotchHook.exe state <etat>    hooks async : ecrit l'etat de la session dans state\
-// NotchHook.exe permission      hook PermissionRequest synchrone : relaie a l'encoche
-// NotchHook.exe ask             hook PreToolUse (AskUserQuestion) synchrone : idem
+// NotchHook.exe permission      hook PermissionRequest synchrone : relaie a l'encoche (permissions et
+//                               questions AskUserQuestion, en parallele de la boite de Claude Code)
+// NotchHook.exe ask             ancien hook PreToolUse : ne fait plus rien (compatibilite)
 // NotchHook.exe audit           hook PermissionDenied async : journal d'audit seulement
 // NotchHook.exe agent           hooks SubagentStart / SubagentStop async : suivi des sous-agents
 //
@@ -169,22 +170,30 @@ static class NotchHook
                 return 0;
             }
 
-            if (mode == "permission" || mode == "ask")
-            {
-                // Hors perimetre de l'encoche : validation de plan, et les questions qui
-                // repassent par PermissionRequest apres "Repondre dans Claude".
-                string tool = Json.Str(d, "tool_name") ?? "";
-                if (mode == "permission" && (tool == "ExitPlanMode" || tool == "AskUserQuestion")) return 0;
+            // Ancien montage : un hook PreToolUse bloquant retenait la question et Claude Desktop ne
+            // l'affichait qu'apres coup. Une installation plus ancienne peut encore l'avoir dans
+            // settings.json : il ne retient plus rien.
+            if (mode == "ask") return 0;
 
-                if (mode == "permission") AuditTool("PermissionRequest", d, id, dir, proj);
-                string reply = Relay(mode, WithBipFields(input, proj, id));
+            if (mode == "permission")
+            {
+                // Hors perimetre de l'encoche : validation de plan.
+                string tool = Json.Str(d, "tool_name") ?? "";
+                if (tool == "ExitPlanMode") return 0;
+
+                // Les questions passent par PermissionRequest comme les permissions : Claude Code
+                // affiche sa propre boite pendant que ce hook tourne, et la premiere reponse
+                // (encoche ou Claude Desktop) ferme l'autre. Cote encoche, c'est une "question".
+                bool question = tool == "AskUserQuestion";
+                if (!question) AuditTool("PermissionRequest", d, id, dir, proj);
+                string reply = Relay(question ? "ask" : "permission", WithBipFields(input, proj, id));
                 if (!string.IsNullOrEmpty(reply))
                 {
                     // La reponse d'abord : Claude attend, le journal peut suivre.
                     var bytes = new UTF8Encoding(false).GetBytes(reply);
                     using (var o = Console.OpenStandardOutput()) o.Write(bytes, 0, bytes.Length);
                 }
-                if (mode == "permission") AuditDecision(reply, d, id);
+                if (!question) AuditDecision(reply, d, id);
                 // Repondu : la session repart. Sinon Claude pose la question lui-meme et la
                 // session attend l'utilisateur. Horodatage "maintenant" : suit le busy du PreToolUse.
                 WriteState(id, string.IsNullOrEmpty(reply) ? "waiting" : "busy", dir, DateTime.Now, transcript, harness);

@@ -539,13 +539,12 @@ namespace ClaudeNotch
             var a = new Dictionary<string, object>();
             foreach (var kv in answers) a[kv.Key] = kv.Value;
             input["answers"] = a;
-            var hso = new Dictionary<string, object>
+            // Reponse d'un hook PermissionRequest : "allow" + entree modifiee (questions et reponses).
+            return Json.Write(Hso("PermissionRequest", "decision", new Dictionary<string, object>
             {
-                { "hookEventName", "PreToolUse" },
-                { "permissionDecision", "allow" },
+                { "behavior", "allow" },
                 { "updatedInput", input }
-            };
-            return Json.Write(new Dictionary<string, object> { { "hookSpecificOutput", hso } });
+            }));
         }
 
         static Dictionary<string, object> Hso(string evt, string key, object value)

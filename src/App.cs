@@ -200,8 +200,9 @@ namespace ClaudeNotch
 
             // Reponses depuis l'encoche : synchrones. Le hook attend le clic ; ce delai
             // n'est qu'un filet, a son expiration Claude pose la question lui-meme.
+            // Les questions (AskUserQuestion) passent par ce meme hook : Claude Code affiche sa
+            // boite en parallele, la premiere reponse gagne.
             add("PermissionRequest",  null, entry(new[] { "permission" }, false, 3600));
-            add("PreToolUse", "AskUserQuestion", entry(new[] { "ask" }, false, 3600));
 
             Save(settings);
             CreateStartupLink();

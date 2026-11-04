@@ -4,6 +4,12 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 ## [Non publié]
 
+### Questions en parallèle dans l'encoche et Claude Desktop (04/11/2026)
+
+- Les questions `AskUserQuestion` passent par le hook `PermissionRequest` au lieu d'un hook `PreToolUse` bloquant : Claude Code affiche sa boîte pendant que l'encoche affiche la carte, la première réponse ferme l'autre. Avant, Claude Desktop n'affichait rien tant que l'encoche gardait la question (10 min par défaut).
+- Réponse de l'encoche : décision `PermissionRequest` `allow` avec `updatedInput.answers`. `--install` retire l'ancien hook `PreToolUse` ; l'ancien mode `ask` ne retient plus rien si une installation l'a encore.
+- Vérifié sur une vraie question (Claude Code 2.1.316, session en `bypassPermissions`).
+
 ### Mascotte renommée et redessinée : Rinel (décision de Ludo, 04/11/2026)
 
 - Nom affiché : **Rinel**, d'après Hervé de Rinel (Kaamelott), au lieu de « Bip » (textes de l'encoche, rapport d'audit, salutations, version). La commande `bip`, le registre `HKCU\Software\Bip`, les pipes et les hooks gardent leur nom technique.

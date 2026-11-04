@@ -119,7 +119,7 @@ Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`des
 - **Permissions depuis l'encoche** : Autoriser, Refuser, ou « Toujours » avec la portée écrite
   sur le bouton (« Toujours : toutes les modifications de fichiers », « Toujours : Edit(src/\*\*) »…),
   limitée à la session. Jamais de « Toujours » pour les commandes shell.
-- **Questions (AskUserQuestion)** : choix unique, multiple, plusieurs questions, réponse libre.
+- **Questions (AskUserQuestion)** : choix unique, multiple, plusieurs questions, réponse libre. Elles s'affichent dans l'encoche **et** dans Claude Desktop en même temps : la première réponse gagne et ferme l'autre.
 - **Répondre dans Claude** à tout moment : la demande repart dans la fenêtre habituelle.
 - **Encoche vide** : Bip salue (et réagit si tu cliques dessus), dernières sessions terminées,
   bilan du jour (sessions, temps de travail, réponses). Un clic ailleurs ouvre Claude.
@@ -289,7 +289,7 @@ sont retirées de `settings.json` ; tes autres hooks ne sont pas touchés.
 ```mermaid
 flowchart LR
     CC["Claude Code<br/>(chaque session)"] -- "hooks async<br/>état, outils, sous-agents" --> H1["NotchHook.exe<br/>state | agent"]
-    CC -- "hook synchrone<br/>PermissionRequest / AskUserQuestion" --> H2["NotchHook.exe<br/>permission | ask"]
+    CC -- "hook synchrone<br/>PermissionRequest (permissions et AskUserQuestion)" --> H2["NotchHook.exe<br/>permission"]
     BR["bip run"] -- "commande suivie" --> ST
     H1 --> ST[("state/<br/>état et sous-agents<br/>de chaque session")]
     H1 --> AU[("audit/<br/>journal chaîné")]
@@ -473,7 +473,7 @@ The full kit (SVG, PNG, reference values, animated preview) is in [`design/rinel
 - **Permissions from the notch**: Allow, Deny, or "Always" with its scope written on the button
   ("Always: all file edits", "Always: Edit(src/\*\*)"…), limited to the session. Never "Always"
   for shell commands.
-- **Questions (AskUserQuestion)**: single choice, multiple choice, several questions, free text.
+- **Questions (AskUserQuestion)**: single choice, multiple choice, several questions, free text. They show in the notch **and** in Claude Desktop at the same time: the first answer wins and closes the other.
 - **Answer in Claude** at any time: the request goes back to the usual Claude window.
 - **Empty notch**: Bip says hello (and reacts when you click it), recent finished sessions,
   today's summary (sessions, working time, answers). Clicking anywhere else opens Claude.
@@ -570,7 +570,7 @@ from `settings.json`; your other hooks are left untouched.
 ```mermaid
 flowchart LR
     CC["Claude Code<br/>(each session)"] -- "async hooks<br/>state, tools, sub-agents" --> H1["NotchHook.exe<br/>state | agent"]
-    CC -- "blocking hook<br/>PermissionRequest / AskUserQuestion" --> H2["NotchHook.exe<br/>permission | ask"]
+    CC -- "blocking hook<br/>PermissionRequest (permissions and AskUserQuestion)" --> H2["NotchHook.exe<br/>permission"]
     BR["bip run"] -- "tracked command" --> ST
     H1 --> ST[("state/<br/>state and sub-agents<br/>of each session")]
     H1 --> AU[("audit/<br/>chained log")]
