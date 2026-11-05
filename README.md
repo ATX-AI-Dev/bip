@@ -23,6 +23,8 @@ qui a fini et qui t'attend, et tu réponds sans changer de fenêtre.
 
 <img src="docs/screenshots/permission.png" width="640" alt="Encoche dépliée : une demande de permission, une commande et deux sessions">
 
+▶ **[Voir la vidéo de présentation (60 s, sans voix)](docs/video/rinel-presentation-60s.mp4)** · [version courte 22 s](docs/video/rinel-presentation-22s.mp4)
+
 </div>
 
 ---
@@ -386,6 +388,8 @@ sous-agents) et ce que l'encoche montrerait ; `notch.log` recueille les erreurs 
 **The Claude Code notch for Windows.** One little knight per session, docked at the top of your
 screen: see at a glance who is working, who is done and who is waiting for you, and answer
 without switching windows. *The interface is in French.*
+
+▶ **[Watch the presentation video (60 s, no voice-over)](docs/video/rinel-presentation-60s.mp4)** · [short cut 22 s](docs/video/rinel-presentation-22s.mp4)
 
 > **Fork of [CR0ZER/bip](https://github.com/CR0ZER/bip)**, the original project ("Bip", MIT licence; all history up to v0.3.0 is CR0ZER's), maintained here by [ATX-AI-Dev](https://github.com/ATX-AI-Dev).
 > What this fork changes: the name and mascot (**Rinel**), **Claude Code questions shown in the notch and in Claude Desktop at the same time** (the first answer closes the other), **Antigravity** sessions, quick capture, morning summary, now-playing music, **calendars** (meetings, Join button) and more tests. Version by version: [CHANGELOG](CHANGELOG.md).

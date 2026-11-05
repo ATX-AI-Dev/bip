@@ -8,7 +8,7 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 - README : encart « fork de CR0ZER/bip » (français et anglais), crédits du projet d'origine et de Rinel, liens d'installation vers le fork (pas de release pour l'instant), licence « © CR0ZER (projet d'origine), modifications © ATX-AI-Dev ».
 - Les dix captures de `docs/screenshots` montrent Rinel (sessions fictives, fond neutre) ; le rapport d'audit est généré sur des données fictives.
-- `docs/VIDEO-PRESENTATION.md` : scénario, visuels et méthode de la vidéo de présentation (60 s), à produire.
+- **Vidéo de présentation** produite, sans voix off (`docs/video/` : 60 s et 22 s en 1920 × 1080, musique originale synthétisée, sources pour la refaire) ; scénario et méthode dans `docs/VIDEO-PRESENTATION.md`. Liens depuis le README.
 
 ### Questions en parallèle dans l'encoche et Claude Desktop (04/11/2026)
 
