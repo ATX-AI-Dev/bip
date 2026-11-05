@@ -232,7 +232,15 @@ namespace ClaudeNotch
                     _pending.Add(p); Refresh(); Peek(p);
                 })),
                 p => Dispatcher.BeginInvoke((Action)(() => { _pending.Remove(p); Refresh(); })),
-                Program.Log).Start();
+                Program.Log,
+                // Outil termine : une demande tranchee dans la boite de Claude Code (Claude Desktop) quitte l'encoche
+                // tout de suite, sans attendre que Claude Code ferme le hook. "~" = reponse sans effet pour le hook.
+                post => Dispatcher.BeginInvoke((Action)(() =>
+                {
+                    foreach (var q in _pending.Where(x => !x.Done && x.SameCall(post)).ToList())
+                    { q.Reply("~"); _pending.Remove(q); _cards.Remove(q); _panelSig = ""; }
+                    Refresh();
+                }))).Start();
 
             // Infos de Bip Connect : decidees sur le fil de l'interface (file, plafond, affichage).
             new InfoServer(m => (string)Dispatcher.Invoke((Func<string>)(() => AcceptInfo(m))), Program.Log).Start();

@@ -498,6 +498,21 @@ static class AuditTests
             Check("question : questions d'origine conservees, reponse indexee par le texte",
                   Json.Arr(Json.Get(upd, "questions")).Length == 1 && Json.Str(Json.Obj(Json.Get(upd, "answers")), "Couleur ?") == "Rouge");
             Check("question : plus de decision PreToolUse", Json.Get(hso, "permissionDecision") == null);
+
+            // Demande tranchee dans Claude Desktop : le PostToolUse correspondant la retire de l'encoche.
+            pq.SessionId = "s1";
+            Func<string, string, string, Dictionary<string, object>> post = (ses, tool, json) => new Dictionary<string, object> {
+                { "bip_sess", ses }, { "tool_name", tool }, { "tool_input", Json.Obj(Json.Parse(json)) } };
+            Check("fin d'outil : meme question (avec reponses ajoutees) reconnue",
+                  pq.SameCall(post("s1", "AskUserQuestion", "{\"questions\":[{\"question\":\"Couleur ?\"}],\"answers\":{\"Couleur ?\":\"Bleu\"}}")));
+            Check("fin d'outil : autre session ou autre question ignorees",
+                  !pq.SameCall(post("s2", "AskUserQuestion", "{\"questions\":[{\"question\":\"Couleur ?\"}]}"))
+               && !pq.SameCall(post("s1", "AskUserQuestion", "{\"questions\":[{\"question\":\"Forme ?\"}]}")));
+            var pb = new Pending { Kind = "permission", SessionId = "s1", Payload = new Dictionary<string, object> {
+                { "tool_name", "Bash" }, { "tool_input", Json.Obj(Json.Parse("{\"command\":\"ls\"}")) } } };
+            Check("fin d'outil : permission reconnue sur l'entree identique seulement",
+                  pb.SameCall(post("s1", "Bash", "{\"command\":\"ls\"}")) && !pb.SameCall(post("s1", "Bash", "{\"command\":\"pwd\"}"))
+               && !pb.SameCall(post("s1", "Edit", "{\"command\":\"ls\"}")));
         }
 
         Console.WriteLine(_fail == 0 ? "Tous les tests passent." : _fail + " test(s) en échec.");

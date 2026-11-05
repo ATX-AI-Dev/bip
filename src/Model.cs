@@ -471,6 +471,18 @@ namespace ClaudeNotch
         }
 
         internal void MarkGone() { Interlocked.Exchange(ref _done, 1); }
+
+        // Vrai si l'evenement PostToolUse "post" decrit cet appel : la demande a ete tranchee ailleurs
+        // (boite de Claude Code), la carte de l'encoche n'a plus lieu d'etre. Meme session, meme outil,
+        // meme entree (pour une question : memes questions, l'entree ayant pu recevoir des reponses).
+        public bool SameCall(Dictionary<string, object> post)
+        {
+            if (post == null || Json.Str(post, "bip_sess") != SessionId || Json.Str(post, "tool_name") != ToolName) return false;
+            var input = Json.Obj(Json.Get(post, "tool_input")) ?? new Dictionary<string, object>();
+            if (ToolName == "AskUserQuestion")
+                return Json.Write(Json.Get(input, "questions")) == Json.Write(Json.Get(ToolInput, "questions"));
+            return Json.Write(input) == Json.Write(ToolInput);
+        }
     }
 
     static class Replies
@@ -566,11 +578,12 @@ namespace ClaudeNotch
         public static string Name { get { return "ClaudeNotch-" + WindowsIdentity.GetCurrent().User.Value; } }
 
         readonly Action<Pending> _onNew, _onGone;
+        readonly Action<Dictionary<string, object>> _onDone;   // un outil vient de se terminer (mode "done")
         readonly Action<string> _log;
 
-        public PipeServer(Action<Pending> onNew, Action<Pending> onGone, Action<string> log)
+        public PipeServer(Action<Pending> onNew, Action<Pending> onGone, Action<string> log, Action<Dictionary<string, object>> onDone = null)
         {
-            _onNew = onNew; _onGone = onGone; _log = log;
+            _onNew = onNew; _onGone = onGone; _log = log; _onDone = onDone;
         }
 
         public void Start()
@@ -628,6 +641,14 @@ namespace ClaudeNotch
                 }
 
                 var payload = Json.Obj(Json.Parse(Encoding.UTF8.GetString(buf)));
+                if (payload != null && parts[0] == "done")
+                {
+                    // Notification d'un hook PostToolUse : sans reponse attendue, on referme.
+                    try { if (_onDone != null) _onDone(payload); } catch { }
+                    try { pipe.WriteByte((byte)'\n'); pipe.Flush(); pipe.WaitForPipeDrain(); } catch { }
+                    pipe.Dispose();
+                    return;
+                }
                 if (payload == null || (parts[0] != "permission" && parts[0] != "ask")) { pipe.Dispose(); return; }
 
                 p = new Pending

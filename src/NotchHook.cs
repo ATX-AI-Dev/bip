@@ -155,6 +155,8 @@ static class NotchHook
                 try { WriteState(id, args.Length > 1 ? args[1] : "ready", dir, started, transcript, harness); } catch { }
                 try { TrackAgentTool(evt, d, id); } catch { }
                 if (evt == "PreToolUse" || evt == "PostToolUse" || evt == "PostToolUseFailure") AuditTool(evt, d, id, dir, proj);
+                // Outil termine : l'encoche retire la carte d'une demande tranchee dans Claude Desktop.
+                if (evt == "PostToolUse" || evt == "PostToolUseFailure") try { Relay("done", WithBipFields(input, proj, id)); } catch { }
                 return 0;
             }
             if (mode == "agent")
@@ -187,6 +189,8 @@ static class NotchHook
                 bool question = tool == "AskUserQuestion";
                 if (!question) AuditTool("PermissionRequest", d, id, dir, proj);
                 string reply = Relay(question ? "ask" : "permission", WithBipFields(input, proj, id));
+                // "~" : l'encoche a vu la demande tranchee ailleurs (Claude Desktop) ; rien a ecrire, ni etat ni reponse.
+                if (reply == "~") return 0;
                 if (!string.IsNullOrEmpty(reply))
                 {
                     // La reponse d'abord : Claude attend, le journal peut suivre.
