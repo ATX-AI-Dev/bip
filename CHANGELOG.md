@@ -16,7 +16,7 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 - Nom affiché : **Rinel**, d'après Hervé de Rinel (Kaamelott), au lieu de « Bip » (textes de l'encoche, rapport d'audit, salutations, version). La commande `bip`, le registre `HKCU\Software\Bip`, les pipes et les hooks gardent leur nom technique.
 - Nouvel avatar : chevalier tout rond, casque à plume, parchemin sous le bras ; mêmes 6 états, mêmes couleurs, mêmes durées. Plume (dressée, couchée, tombante) et parchemin remplacent l'antenne et le bras levé.
 - Kit `design/rinel-mascotte` (SVG animés, PNG, planche, aperçu, `tokens.json`) ; l'ancien kit `design/bip-mascotte` et son contrôle WPF autonome sont retirés (`src/Bip.cs` reste le portage de référence).
-- Non vu à l'écran (session Windows sans affichage) : rendu WPF vérifié par logique d'états et compilation, géométrie identique aux SVG.
+- Rendu WPF vu à l'écran le 05/11/2026 ; captures du README refaites avec Rinel (sessions fictives, fond neutre) : encoche repliée, entrouverte, permission, question, commandes, sous-agents, réglages. README : « Bip » remplacé par « Rinel » dans le texte. Restent à refaire avec un écran : `encoche-vide.png`, `regle.png` et `rapport-audit.png` (ancien robot).
 
 ### Phase 4 « compagnon » : agendas (Google, Microsoft personnel, M365)
 

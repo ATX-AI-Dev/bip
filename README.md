@@ -30,13 +30,13 @@ Claude Code travaille seul pendant de longues minutes, souvent dans plusieurs se
 Le problème n'est pas de le lancer, c'est de **savoir quand il a besoin de toi** : une commande
 à autoriser, une question à trancher. Tant que personne ne répond, la session est bloquée.
 
-Bip vit dans une encoche noire en haut au centre de l'écran, façon *Dynamic Island*. Repliée,
+Rinel vit dans une encoche noire en haut au centre de l'écran, façon *Dynamic Island*. Repliée,
 elle se fait oublier et laisse passer les clics ; au survol, elle se déplie et te laisse
 répondre directement.
 
 ## Pensé pour être léger
 
-Bip tourne en permanence à côté de ton travail : il doit se faire oublier, sur n'importe quel PC.
+Rinel tourne en permanence à côté de ton travail : il doit se faire oublier, sur n'importe quel PC.
 
 - **Un seul processus permanent**, `ClaudeNotch.exe`. Le hook `NotchHook.exe` ne vit que le temps
   d'un appel, en arrière-plan, sans jamais ralentir Claude.
@@ -59,8 +59,8 @@ animations cachées doublaient la consommation après un dépliage : c'est corri
 
 | Situation | Processeur | Mémoire |
 |---|---|---|
-| Une session au travail (Bip animé), y compris après des dépliages | ~2,3 % d'un cœur | ~76 Mo |
-| Aucun Bip animé (mesuré en v0.2) | < 1 % d'un cœur | ~70 Mo |
+| Une session au travail (Rinel animé), y compris après des dépliages | ~2,3 % d'un cœur | ~76 Mo |
+| Aucun Rinel animé (mesuré en v0.2) | < 1 % d'un cœur | ~70 Mo |
 | `NotchHook.exe`, par appel d'outil, journal d'audit et sous-agents compris | ~115 ms, en arrière-plan | — |
 | Relecture du journal d'audit après un ajout, grosse journée (10 000 évènements) | ~15 ms | — |
 | Rapport d'audit (1 200 évènements), généré en arrière-plan | ~0,8 s | — |
@@ -73,13 +73,13 @@ détail des mesures est dans [`docs/CONCEPTION.md`](docs/CONCEPTION.md).
 
 | Repliée | Une demande arrive |
 |:---:|:---:|
-| <img src="docs/screenshots/repliee.png" width="400" alt="Encoche repliée, quatre Bip"> | <img src="docs/screenshots/entrouverte.png" width="400" alt="Encoche entrouverte : Migrations staging attend ta réponse"> |
-| Un Bip par session ou commande suivie, dans l'ordre de lancement (5 au plus, puis « +N »). | L'encoche s'entrouvre 4 s pour dire qui attend (le titre du chat), puis se replie ; un éclat rouge balaie son bord tant que la demande est ouverte. |
+| <img src="docs/screenshots/repliee.png" width="400" alt="Encoche repliée, quatre Rinel"> | <img src="docs/screenshots/entrouverte.png" width="400" alt="Encoche entrouverte : Migrations staging attend ta réponse"> |
+| Un Rinel par session ou commande suivie, dans l'ordre de lancement (5 au plus, puis « +N »). | L'encoche s'entrouvre 4 s pour dire qui attend (le titre du chat), puis se replie ; un éclat rouge balaie son bord tant que la demande est ouverte. |
 
 | Répondre à une question | Encoche vide |
 |:---:|:---:|
-| <img src="docs/screenshots/question.png" width="400" alt="Carte de question à choix"> | <img src="docs/screenshots/encoche-vide.png" width="400" alt="Bip salue, dernières sessions et bilan du jour"> |
-| Choix unique, choix multiple ou réponse libre (« Autre… »). | Plus rien ne tourne : Bip se réveille, salue, montre les dernières sessions et le bilan du jour. |
+| <img src="docs/screenshots/question.png" width="400" alt="Carte de question à choix"> | <img src="docs/screenshots/encoche-vide.png" width="400" alt="Rinel salue, dernières sessions et bilan du jour"> |
+| Choix unique, choix multiple ou réponse libre (« Autre… »). | Plus rien ne tourne : Rinel se réveille, salue, montre les dernières sessions et le bilan du jour. |
 
 | Commandes suivies (`bip run`) | Réglages (☰) |
 |:---:|:---:|
@@ -91,19 +91,19 @@ détail des mesures est dans [`docs/CONCEPTION.md`](docs/CONCEPTION.md).
 | <img src="docs/screenshots/sous-agents.png" width="560" alt="Session avec trois sous-agents en retrait, récap de fin de tour en vert, ne pas déranger en haut à gauche"> |
 | Sous chaque session, ses sous-agents en retrait ; en vert, le récap du tour d'une session prête. En haut à gauche, le « ne pas déranger » en cours. |
 
-## Bip
+## Rinel
 
 <img src="design/rinel-mascotte/apercu-planche.png" alt="Les cinq états de Rinel à 128, 40, 20 et 16 px">
 
 | État | Quand | Ce qu'il fait |
 |---|---|---|
-| **En attente** (rouge) | Une permission ou une question attend ta réponse | Lève le bras, respire de plus en plus vite, tremble de temps en temps |
+| **En attente** (rouge) | Une permission ou une question attend ta réponse | Brandit son parchemin, plume gonflée, respire de plus en plus vite, tremble de temps en temps |
 | **En cours** (orange) | Claude réfléchit, lit, exécute | Flotte doucement |
 | **Prêt** (vert) | Claude a fini et rend la main | Fait un petit saut, puis s'efface au bout de 4 min |
 | **Erreur** (gris, « ! ») | Le tour s'est arrêté sur une erreur de l'API | S'affaisse |
-| **Au repos** (gris foncé) | Session ouverte, rien demandé encore | Dort, antenne pliée |
+| **Au repos** (gris foncé) | Session ouverte, rien demandé encore | Dort, plume couchée |
 
-Chaque état se lit aussi sans la couleur (bras, pastille, antenne), même à 16 px.
+Chaque état se lit aussi sans la couleur (parchemin, pastille, plume), même à 16 px.
 Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`design/rinel-mascotte`](design/rinel-mascotte).
 
 ## Fonctionnalités
@@ -113,7 +113,7 @@ Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`des
   data-pipeline/ ». Plusieurs sessions dans le même dossier se distinguent enfin.
 - **Sous-agents visibles** : sous la session, chaque sous-agent qu'elle lance, avec sa
   description et sa durée (5 au plus, puis « +N »). Fini, il passe au vert une minute, puis
-  disparaît, sans entrouvrir l'encoche. Repliée, l'encoche garde un seul Bip par session.
+  disparaît, sans entrouvrir l'encoche. Repliée, l'encoche garde un seul Rinel par session.
 - **Récap de fin de tour** : quand une session rend la main, ce qu'elle a fait, en vert sous son
   nom : « 3 fichiers modifiés · 2 commandes · 1 échec ».
 - **Permissions depuis l'encoche** : Autoriser, Refuser, ou « Toujours » avec la portée écrite
@@ -121,13 +121,13 @@ Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`des
   limitée à la session. Jamais de « Toujours » pour les commandes shell.
 - **Questions (AskUserQuestion)** : choix unique, multiple, plusieurs questions, réponse libre. Elles s'affichent dans l'encoche **et** dans Claude Desktop en même temps : la première réponse gagne et ferme l'autre.
 - **Répondre dans Claude** à tout moment : la demande repart dans la fenêtre habituelle.
-- **Encoche vide** : Bip salue (et réagit si tu cliques dessus), dernières sessions terminées,
+- **Encoche vide** : Rinel salue (et réagit si tu cliques dessus), dernières sessions terminées,
   bilan du jour (sessions, temps de travail, réponses). Un clic ailleurs ouvre Claude.
 - **Ne pas déranger** pendant 1 h : ni entrouverture, ni éclat, ni clignotement. Rappelé en haut
   à gauche de l'encoche dépliée (« ☾ jusqu'à 17:18 », « ☾ appel en cours (Teams) ») ; un clic
   le lève.
 - **Sourdine automatique pendant les appels** (Teams, Zoom, Meet, Slack, Discord, Webex…) :
-  Bip le signale d'un bref « ☾ Ne pas déranger · appel en cours », puis te dit à la fin de
+  Rinel le signale d'un bref « ☾ Ne pas déranger · appel en cours », puis te dit à la fin de
   l'appel ce qui s'est passé (« 2 sessions ont fini · data-pipeline t'attend depuis 12 min »).
   Détectée par l'utilisation du micro, aucune intégration à installer ; désactivable.
 - **Escalade douce** : après 5 min d'attente, la fenêtre Claude clignote dans la barre des
@@ -135,7 +135,7 @@ Le kit complet (SVG, PNG, valeurs de référence, aperçu animé) est dans [`des
 - **Invisible quand il le faut** : masquée pendant les applis en plein écran.
 - **Réglages dans l'encoche** : le bouton **☰** en haut à droite de l'encoche dépliée (ou un
   clic droit) ajoute les réglages sous le contenu : ne pas déranger, sourdine pendant les
-  appels, clignotement, journal d'audit, règles créées par Bip, dossier d'état, quitter.
+  appels, clignotement, journal d'audit, règles créées par Rinel, dossier d'état, quitter.
 
 ### Suivre une commande longue : `bip run`
 
@@ -144,7 +144,7 @@ bip run npm run build
 ```
 
 La commande tourne dans ton terminal, sortie et couleurs intactes, et apparaît dans l'encoche
-avec sa durée. À la fin, Bip s'entrouvre (« npm run build a fini · 4 min 12 s », ou en échec
+avec sa durée. À la fin, Rinel s'entrouvre (« npm run build a fini · 4 min 12 s », ou en échec
 avec le code de retour). `bip` renvoie le code de la commande : il s'utilise dans un script.
 Une petite croix retire une commande de l'encoche (si elle tourne encore, elle continue).
 
@@ -154,7 +154,7 @@ Une petite croix retire une commande de l'encoche (si elle tourne encore, elle c
 bip info --source agenda --priorite 2 "Point équipe dans 10 min" "Teams"
 ```
 
-L'info s'entrouvre avec un ⓘ et le nom de sa source (jamais avec Bip, qui représente les agents),
+L'info s'entrouvre avec un ⓘ et le nom de sa source (jamais avec Rinel, qui représente les agents),
 puis reste dans la section « Infos » du panneau jusqu'à sa durée (`--duree`, 5 min par défaut,
 de 10 s à 1 h) ou jusqu'à ce que tu la retires. Ce canal est **en lecture seule** : séparé de
 celui des demandes, il ne peut ni répondre à une permission ni changer l'état d'une session.
@@ -177,14 +177,14 @@ Un clic dessus déplie le détail heure par heure (20 lignes au plus) et un lien
 ### Musique en cours
 
 Ce qui joue sur le poste (Spotify, Deezer, YouTube ou SoundCloud dans le navigateur, VLC…) apparaît dans le
-panneau déplié : « ♪ titre — artiste », l'application, lecture/pause et morceau suivant. Bip lit les sessions
+panneau déplié : « ♪ titre — artiste », l'application, lecture/pause et morceau suivant. Rinel lit les sessions
 média de Windows : aucun compte, aucun accès réseau. Pendant un appel, la musique est mise en pause et reprend
 à la fin si le même morceau est toujours en pause (réglage « Musique en pause pendant les appels », `music=`).
 
 ### Agenda (Google, Outlook, M365)
 
 Les agendas sont lus par **Logres** sur `.178` (adresses iCal secrètes, jamais sur le PC) et arrivent par le collecteur du PC,
-qui les passe à `bip agenda` (contrat `docs/CONTRAT-BIP-AGENDA.md` de Logres). Bip montre :
+qui les passe à `bip agenda` (contrat `docs/CONTRAT-BIP-AGENDA.md` de Logres). Rinel montre :
 
 - dans l'encoche repliée, la réunion en cours ou la prochaine du jour dans les 2 heures (« 14:00 Point hebdo ») ;
 - 5 minutes avant, une entrouverture, une seule fois ; la survoler déplie le panneau ;
@@ -200,10 +200,10 @@ Sans nouvelles de Logres depuis 30 minutes, le panneau dit que l'agenda est peut
 Si Antigravity est installé, `installer.cmd` le branche aussi : ses sessions apparaissent dans
 l'encoche (« agy · titre · dossier/ », au repos, en cours, prête ou en erreur) et chaque outil
 qu'il utilise est inscrit au journal d'audit. **Ses demandes de permission restent dans
-Antigravity** : ses hooks ne signalent pas qu'il attend une réponse, Bip ne répond jamais à sa place.
+Antigravity** : ses hooks ne signalent pas qu'il attend une réponse, Rinel ne répond jamais à sa place.
 
 L'installeur pose un petit script relais, `~/.gemini/config/bip-hook.cmd`, et une entrée `bip`
-dans `~/.gemini/config/hooks.json`. Le relais vit hors du dossier de Bip : si Bip est supprimé
+dans `~/.gemini/config/hooks.json`. Le relais vit hors du dossier de Rinel : si Rinel est supprimé
 sans désinstallation, il renvoie la réponse neutre et Antigravity continue comme sans hook
 (sans lui, Antigravity arrête toute sa tâche sur un hook introuvable). `desinstaller.cmd` retire
 l'entrée et le relais.
@@ -218,8 +218,8 @@ tout de suite si le poste est verrouillé ou la session à distance déconnecté
 
 ### Journal d'audit
 
-Bip garde la trace de **tout ce que les agents font sur le poste** : chaque commande, fichier
-modifié ou page consultée, qui l'a autorisé (toi dans Bip, toi dans Claude, une règle, le mode
+Rinel garde la trace de **tout ce que les agents font sur le poste** : chaque commande, fichier
+modifié ou page consultée, qui l'a autorisé (toi dans Rinel, toi dans Claude, une règle, le mode
 auto) et le résultat.
 
 - **Secrets masqués avant écriture** (jetons, clés d'API, mots de passe, identifiants dans les
@@ -236,7 +236,7 @@ auto) et le résultat.
 
 ### Règles suggérées
 
-Après **5 autorisations de la même commande dans un projet** (`npm test`, `pytest`…), Bip
+Après **5 autorisations de la même commande dans un projet** (`npm test`, `pytest`…), Rinel
 propose d'en faire une règle Claude Code, en affichant la règle exacte : **Ce projet** (écrite
 dans `.claude/settings.local.json`, non versionné), **Partout**, ou **Non, ne plus proposer**.
 Seules les commandes d'une liste blanche sont proposées (lanceurs de tests, sous-commandes de
@@ -254,7 +254,7 @@ Répondre aux questions depuis l'encoche demande Claude Code 2.1.85 ou plus réc
 
 **Télécharger** (le plus simple) : prends `Bip-vX.Y.Z.zip` dans la
 [dernière release](https://github.com/CR0ZER/bip/releases/latest), décompresse-le dans un dossier
-permanent (par exemple `Documents\Bip`, pas dans Téléchargements : les hooks pointent vers ce
+permanent (par exemple `Documents\Rinel`, pas dans Téléchargements : les hooks pointent vers ce
 dossier), puis lance `installer.cmd`.
 
 > Les exécutables ne sont pas signés : au premier lancement, Windows SmartScreen peut afficher
@@ -270,15 +270,15 @@ cd bip
 installer.cmd
 ```
 
-`installer.cmd` compile les exécutables si besoin, ajoute les hooks de Bip dans
-`~/.claude/settings.json` (une sauvegarde datée est faite à côté), ajoute le dossier de Bip à
+`installer.cmd` compile les exécutables si besoin, ajoute les hooks de Rinel dans
+`~/.claude/settings.json` (une sauvegarde datée est faite à côté), ajoute le dossier de Rinel à
 ton `PATH` (pour `bip run`), ajoute l'encoche au démarrage de Windows et la lance. Il peut être relancé sans risque.
 
 **Mettre à jour** : remplace le contenu du dossier par la nouvelle version, puis relance
 `installer.cmd`. Il ajoute les hooks apparus entre-temps (en 0.3.0 : `SubagentStart` et
 `SubagentStop`, pour les sous-agents) ; ton journal d'audit et tes réglages sont conservés.
 
-Pour tout retirer : `desinstaller.cmd`, puis supprimer le dossier. Seules les entrées de Bip
+Pour tout retirer : `desinstaller.cmd`, puis supprimer le dossier. Seules les entrées de Rinel
 sont retirées de `settings.json` ; tes autres hooks ne sont pas touchés.
 
 > Les nouvelles sessions Claude prennent les hooks en compte immédiatement ; une session déjà
@@ -354,7 +354,7 @@ sous-agents) et ce que l'encoche montrerait ; `notch.log` recueille les erreurs 
 ## Crédits
 
 - **Inspiré de [coucou](https://github.com/Louis-CFM/coucou)** de Louis-CFM, l'encoche compagnon
-  pour agents de code sur macOS (licence MIT). Bip en reprend l'idée (un bloc noir qui se
+  pour agents de code sur macOS (licence MIT). Rinel en reprend l'idée (un bloc noir qui se
   transforme, des réponses depuis l'encoche) ; le code, la mascotte et le design sont propres
   à ce projet.
 - **Mascotte et design** conçus avec Claude Design.
@@ -385,13 +385,13 @@ Claude Code works on its own for long minutes, often in several sessions at once
 is easy; the hard part is **knowing when it needs you**: a command to approve, a question to
 answer. Until someone replies, the session is stuck.
 
-Bip lives in a black notch at the top centre of the screen, *Dynamic Island* style. Collapsed,
+Rinel lives in a black notch at the top centre of the screen, *Dynamic Island* style. Collapsed,
 it stays out of the way and lets clicks through; hover it and it unfolds so you can answer
 right there.
 
 ### Built to stay light
 
-Bip runs all day next to your work: it has to go unnoticed, on any PC.
+Rinel runs all day next to your work: it has to go unnoticed, on any PC.
 
 - **A single long-running process**, `ClaudeNotch.exe`. The `NotchHook.exe` hook only lives for
   one call, in the background, and never slows Claude down.
@@ -413,8 +413,8 @@ opening the notch: fixed.
 
 | Situation | CPU | Memory |
 |---|---|---|
-| One session working (Bip animated), including after opening the notch | ~2.3 % of one core | ~76 MB |
-| No animated Bip (measured in v0.2) | < 1 % of one core | ~70 MB |
+| One session working (Rinel animated), including after opening the notch | ~2.3 % of one core | ~76 MB |
+| No animated Rinel (measured in v0.2) | < 1 % of one core | ~70 MB |
 | `NotchHook.exe`, per tool call, audit log and sub-agents included | ~115 ms, in the background | — |
 | Re-reading the audit log after a new line, busy day (10,000 events) | ~15 ms | — |
 | Audit report (1,200 events), built in the background | ~0.8 s | — |
@@ -427,13 +427,13 @@ in [`docs/CONCEPTION.md`](docs/CONCEPTION.md) (in French).
 
 | Collapsed | A request comes in |
 |:---:|:---:|
-| <img src="docs/screenshots/repliee.png" width="400" alt="Collapsed notch, four Bips"> | <img src="docs/screenshots/entrouverte.png" width="400" alt="Peeking notch: Migrations staging is waiting for you"> |
-| One Bip per session or tracked command, in launch order (5 at most, then "+N"). | The notch peeks open for 4 s to say who is waiting (the chat title), then folds back; a red glow sweeps its edge while the request is open. |
+| <img src="docs/screenshots/repliee.png" width="400" alt="Collapsed notch, four Rinel"> | <img src="docs/screenshots/entrouverte.png" width="400" alt="Peeking notch: Migrations staging is waiting for you"> |
+| One Rinel per session or tracked command, in launch order (5 at most, then "+N"). | The notch peeks open for 4 s to say who is waiting (the chat title), then folds back; a red glow sweeps its edge while the request is open. |
 
 | Answering a question | Empty notch |
 |:---:|:---:|
-| <img src="docs/screenshots/question.png" width="400" alt="Multiple-choice question card"> | <img src="docs/screenshots/encoche-vide.png" width="400" alt="Bip says hello, recent sessions and today's summary"> |
-| Single choice, multiple choice or free text ("Autre…"). | Nothing running: Bip wakes up, says hello, and shows recent sessions and today's summary. |
+| <img src="docs/screenshots/question.png" width="400" alt="Multiple-choice question card"> | <img src="docs/screenshots/encoche-vide.png" width="400" alt="Rinel says hello, recent sessions and today's summary"> |
+| Single choice, multiple choice or free text ("Autre…"). | Nothing running: Rinel wakes up, says hello, and shows recent sessions and today's summary. |
 
 | Tracked commands (`bip run`) | Settings (☰) |
 |:---:|:---:|
@@ -445,19 +445,19 @@ in [`docs/CONCEPTION.md`](docs/CONCEPTION.md) (in French).
 | <img src="docs/screenshots/sous-agents.png" width="560" alt="Session with three indented sub-agents, end-of-turn recap in green, do not disturb at the top left"> |
 | Under each session, its sub-agents; in green, the turn recap of a session that is done. At the top left, the current do-not-disturb. |
 
-### Meet Bip
+### Meet Rinel
 
 <img src="design/rinel-mascotte/apercu-planche.png" alt="Rinel's five states at 128, 40, 20 and 16 px">
 
 | State | When | What it does |
 |---|---|---|
-| **Waiting** (red) | A permission or a question needs your answer | Raises its arm, breathes faster and faster, trembles now and then |
+| **Waiting** (red) | A permission or a question needs your answer | Brandishes its scroll, plume puffed up, breathes faster and faster, trembles now and then |
 | **Running** (orange) | Claude is thinking, reading, executing | Floats gently |
 | **Ready** (green) | Claude is done and hands back control | Does a little hop, then fades out after 4 min |
 | **Error** (grey, "!") | The turn stopped on an API error | Slumps |
-| **Idle** (dark grey) | Session open, nothing asked yet | Sleeps, antenna folded |
+| **Idle** (dark grey) | Session open, nothing asked yet | Sleeps, plume laid down |
 
-Every state also reads without colour (arm, badge, antenna), even at 16 px.
+Every state also reads without colour (scroll, badge, plume), even at 16 px.
 The full kit (SVG, PNG, reference values, animated preview) is in [`design/rinel-mascotte`](design/rinel-mascotte).
 
 ### Features
@@ -467,7 +467,7 @@ The full kit (SVG, PNG, reference values, animated preview) is in [`design/rinel
   data-pipeline/". Several sessions in the same folder can finally be told apart.
 - **Visible sub-agents**: under the session, every sub-agent it launches, with its description
   and duration (5 at most, then "+N"). Once done, it turns green for a minute, then goes away,
-  without peeking the notch open. Collapsed, the notch keeps a single Bip per session.
+  without peeking the notch open. Collapsed, the notch keeps a single Rinel per session.
 - **End-of-turn recap**: when a session hands back control, what it did, in green under its
   name: "3 fichiers modifiés · 2 commandes · 1 échec".
 - **Permissions from the notch**: Allow, Deny, or "Always" with its scope written on the button
@@ -475,11 +475,11 @@ The full kit (SVG, PNG, reference values, animated preview) is in [`design/rinel
   for shell commands.
 - **Questions (AskUserQuestion)**: single choice, multiple choice, several questions, free text. They show in the notch **and** in Claude Desktop at the same time: the first answer wins and closes the other.
 - **Answer in Claude** at any time: the request goes back to the usual Claude window.
-- **Empty notch**: Bip says hello (and reacts when you click it), recent finished sessions,
+- **Empty notch**: Rinel says hello (and reacts when you click it), recent finished sessions,
   today's summary (sessions, working time, answers). Clicking anywhere else opens Claude.
 - **Do not disturb** for 1 h: no peeking, no glow, no flashing. Shown at the top left of the
   open notch ("☾ jusqu'à 17:18", "☾ appel en cours (Teams)"); one click lifts it.
-- **Automatic mute during calls** (Teams, Zoom, Meet, Slack, Discord, Webex…): Bip says so
+- **Automatic mute during calls** (Teams, Zoom, Meet, Slack, Discord, Webex…): Rinel says so
   briefly, then tells you at the end of the call what happened while you were busy. Detected
   from microphone use, nothing to integrate; can be turned off.
 - **Gentle escalation**: after 5 min of waiting, the Claude window flashes in the taskbar
@@ -487,7 +487,7 @@ The full kit (SVG, PNG, reference values, animated preview) is in [`design/rinel
 - **Out of the way when needed**: hidden while a full-screen app is running.
 - **Settings inside the notch**: the **☰** button at the top right of the open notch (or a
   right-click) adds the settings below the content: do not disturb, mute during calls,
-  flashing, audit log, rules created by Bip, state folder, quit.
+  flashing, audit log, rules created by Rinel, state folder, quit.
 
 #### Follow a long command: `bip run`
 
@@ -496,14 +496,14 @@ bip run npm run build
 ```
 
 The command runs in your terminal, output and colours untouched, and shows up in the notch with
-its duration. When it ends, Bip peeks open ("npm run build a fini · 4 min 12 s", or the exit
+its duration. When it ends, Rinel peeks open ("npm run build a fini · 4 min 12 s", or the exit
 code on failure). `bip` returns the command's exit code, so it works in scripts. A small cross
 removes a command from the notch (if it is still running, it keeps running).
 
 #### Audit log
 
-Bip records **everything agents do on the machine**: every command, edited file or fetched page,
-who allowed it (you in Bip, you in Claude, a rule, auto mode) and the outcome.
+Rinel records **everything agents do on the machine**: every command, edited file or fetched page,
+who allowed it (you in Rinel, you in Claude, a rule, auto mode) and the outcome.
 
 - **Secrets masked before writing** (tokens, API keys, passwords, credentials in URLs).
 - **SHA-256 hash chain**: a line edited or deleted afterwards, or a truncated log, shows up.
@@ -518,13 +518,13 @@ who allowed it (you in Bip, you in Claude, a rule, auto mode) and the outcome.
 
 #### Suggested rules
 
-After **5 approvals of the same command in a project** (`npm test`, `pytest`…), Bip offers to
+After **5 approvals of the same command in a project** (`npm test`, `pytest`…), Rinel offers to
 turn it into a Claude Code rule and shows the exact rule: **this project** (written to the
 unversioned `.claude/settings.local.json`), **everywhere**, or **never suggest again**. Only allowlisted
 commands are suggested (test runners, read, build or check subcommands: `npm test`, `git status`,
 `terraform plan`…), never compound or risky ones: no `Bash(terraform:*)`, which would also allow
 `terraform destroy`. Rules
-created by Bip can be removed in one click from the settings (☰), and every change is written to the
+created by Rinel can be removed in one click from the settings (☰), and every change is written to the
 audit log.
 
 <p align="center"><img src="docs/screenshots/regle.png" width="560" alt="Permission card with a suggested rule: this project, everywhere, never suggest again"></p>
@@ -536,7 +536,7 @@ Answering questions from the notch needs Claude Code 2.1.85 or later.
 
 **Download** (easiest): grab `Bip-vX.Y.Z.zip` from the
 [latest release](https://github.com/CR0ZER/bip/releases/latest), unzip it into a permanent
-folder (for instance `Documents\Bip`, not Downloads: the hooks point to that folder), then run
+folder (for instance `Documents\Rinel`, not Downloads: the hooks point to that folder), then run
 `installer.cmd`.
 
 > The executables are not signed: on first launch, Windows SmartScreen may say "Windows protected
@@ -551,8 +551,8 @@ cd bip
 installer.cmd
 ```
 
-`installer.cmd` builds the executables if needed, adds Bip's hooks to `~/.claude/settings.json`
-(a dated backup is saved next to it), adds Bip's folder to your `PATH` (for `bip run`), adds the
+`installer.cmd` builds the executables if needed, adds Rinel's hooks to `~/.claude/settings.json`
+(a dated backup is saved next to it), adds Rinel's folder to your `PATH` (for `bip run`), adds the
 notch to Windows startup and launches it. It is
 safe to run again.
 
@@ -560,7 +560,7 @@ safe to run again.
 It adds any hooks introduced since (in 0.3.0: `SubagentStart` and `SubagentStop`, for
 sub-agents); your audit log and settings are kept.
 
-To remove everything: `desinstaller.cmd`, then delete the folder. Only Bip's entries are removed
+To remove everything: `desinstaller.cmd`, then delete the folder. Only Rinel's entries are removed
 from `settings.json`; your other hooks are left untouched.
 
 > New Claude sessions pick up the hooks immediately; an already open session may need a restart.
@@ -635,7 +635,7 @@ would show; `notch.log` collects errors; `journal\` keeps 7 days of summaries.
 ### Credits
 
 - **Inspired by [coucou](https://github.com/Louis-CFM/coucou)** by Louis-CFM, the companion notch
-  for coding agents on macOS (MIT licence). Bip borrows the idea (a black block that morphs,
+  for coding agents on macOS (MIT licence). Rinel borrows the idea (a black block that morphs,
   answering from the notch); the code, the mascot and the design are this project's own.
 - **Mascot and design** made with Claude Design.
 - Independent project, not affiliated with Anthropic. "Claude" and "Claude Code" are trademarks
