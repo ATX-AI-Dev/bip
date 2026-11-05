@@ -10,6 +10,15 @@ le texte à l'écran, la lecture se fait aussi sans le son.
 | [`video/vignette.png`](video/vignette.png) | image d'ouverture |
 | [`video/source/`](video/source) | de quoi refaire la vidéo (script, sprites) |
 
+## Style visuel : verre cristal en 3D simulée
+
+- Fond profond bleu nuit avec des halos lumineux (bokeh) qui dérivent à des vitesses différentes, pour la profondeur.
+- Panneaux de **verre dépoli** : le fond se floute derrière, biseau lumineux, reflet courbe en haut, bande spéculaire qui balaie,
+  ombre portée ; ils pivotent légèrement en perspective (vrai calcul de perspective, pas un simple décalage).
+- **Orbes de cristal** pour Rinel : effet de bord lumineux (Fresnel), reflets, lueur colorée et reflet sur le sol.
+- Les captures de l'encoche sont détourées (l'encoche seule) et posées sous le verre.
+- Rendu image par image avec Pillow et NumPy, sans moteur 3D ; environ 1,3 s par image.
+
 ## Scénario (60 s)
 
 | Temps | Scène | Texte à l'écran |
