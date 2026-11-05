@@ -4,6 +4,12 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 
 ## [Non publié]
 
+### Fork : README et visuels (05/11/2026)
+
+- README : encart « fork de CR0ZER/bip » (français et anglais), crédits du projet d'origine et de Rinel, liens d'installation vers le fork (pas de release pour l'instant), licence « © CR0ZER (projet d'origine), modifications © ATX-AI-Dev ».
+- Les dix captures de `docs/screenshots` montrent Rinel (sessions fictives, fond neutre) ; le rapport d'audit est généré sur des données fictives.
+- `docs/VIDEO-PRESENTATION.md` : scénario, visuels et méthode de la vidéo de présentation (60 s), à produire.
+
 ### Questions en parallèle dans l'encoche et Claude Desktop (04/11/2026)
 
 - Les questions `AskUserQuestion` passent par le hook `PermissionRequest` au lieu d'un hook `PreToolUse` bloquant : Claude Code affiche sa boîte pendant que l'encoche affiche la carte, la première réponse ferme l'autre. Avant, Claude Desktop n'affichait rien tant que l'encoche gardait la question (10 min par défaut).
@@ -16,7 +22,7 @@ Les versions suivent [SemVer](https://semver.org/lang/fr/). Chaque section sert 
 - Nom affiché : **Rinel**, d'après Hervé de Rinel (Kaamelott), au lieu de « Bip » (textes de l'encoche, rapport d'audit, salutations, version). La commande `bip`, le registre `HKCU\Software\Bip`, les pipes et les hooks gardent leur nom technique.
 - Nouvel avatar : chevalier tout rond, casque à plume, parchemin sous le bras ; mêmes 6 états, mêmes couleurs, mêmes durées. Plume (dressée, couchée, tombante) et parchemin remplacent l'antenne et le bras levé.
 - Kit `design/rinel-mascotte` (SVG animés, PNG, planche, aperçu, `tokens.json`) ; l'ancien kit `design/bip-mascotte` et son contrôle WPF autonome sont retirés (`src/Bip.cs` reste le portage de référence).
-- Rendu WPF vu à l'écran le 05/11/2026 ; captures du README refaites avec Rinel (sessions fictives, fond neutre) : encoche repliée, entrouverte, permission, question, commandes, sous-agents, réglages. README : « Bip » remplacé par « Rinel » dans le texte. Restent à refaire avec un écran : `encoche-vide.png`, `regle.png` et `rapport-audit.png` (ancien robot).
+- Rendu WPF vu à l'écran le 05/11/2026 ; captures du README refaites avec Rinel (sessions fictives, fond neutre) : encoche repliée, entrouverte, permission, question, commandes, sous-agents, réglages. README : « Bip » remplacé par « Rinel » dans le texte. Les dix captures sont refaites.
 
 ### Phase 4 « compagnon » : agendas (Google, Microsoft personnel, M365)
 

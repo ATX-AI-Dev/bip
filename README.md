@@ -8,13 +8,16 @@
 Un petit chevalier par session, collé en haut de l'écran : tu vois d'un coup d'œil qui travaille,
 qui a fini et qui t'attend, et tu réponds sans changer de fenêtre.
 
+> **Fork de [CR0ZER/bip](https://github.com/CR0ZER/bip)**, le projet d'origine (« Bip », licence MIT, tout l'historique jusqu'à la v0.3.0 est de CR0ZER), maintenu ici par [ATX-AI-Dev](https://github.com/ATX-AI-Dev).
+> Ce que ce fork change : le nom et la mascotte (**Rinel**, voir ci-dessous), les **questions de Claude Code affichées en même temps dans l'encoche et dans Claude Desktop** (la première réponse ferme l'autre), les sessions **Antigravity**, la capture rapide, le bilan du matin, la musique en cours, les **agendas** (réunions, bouton Rejoindre) et plus de tests. Détail version par version : [CHANGELOG](CHANGELOG.md).
+>
 > La mascotte et le nom affiché sont désormais **Rinel** (Hervé de Rinel, Kaamelott). La commande reste `bip` (`bip run`, `bip info`, `bip agenda`) et le dossier de réglages ne change pas.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
 ![.NET Framework 4.x](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4)
 ![Sans SDK](https://img.shields.io/badge/compil%C3%A9%20avec-csc%20de%20Windows-555)
 ![Licence MIT](https://img.shields.io/badge/licence-MIT-2EA44F)
-[![Dernière version](https://img.shields.io/github/v/release/CR0ZER/bip?label=version)](https://github.com/CR0ZER/bip/releases/latest)
+[![Dernière version](https://img.shields.io/github/last-commit/ATX-AI-Dev/bip?label=dernier%20commit)](https://github.com/ATX-AI-Dev/bip/commits/main)
 
 **🇫🇷 Français** · [🇬🇧 English](#english)
 
@@ -252,20 +255,21 @@ ajout ou retrait est inscrit au journal d'audit.
 Prérequis : Windows 10 ou 11 (le .NET Framework 4.x est déjà présent) et Claude Code.
 Répondre aux questions depuis l'encoche demande Claude Code 2.1.85 ou plus récent.
 
-**Télécharger** (le plus simple) : prends `Bip-vX.Y.Z.zip` dans la
-[dernière release](https://github.com/CR0ZER/bip/releases/latest), décompresse-le dans un dossier
-permanent (par exemple `Documents\Rinel`, pas dans Téléchargements : les hooks pointent vers ce
-dossier), puis lance `installer.cmd`.
+**Télécharger** : ce fork ne publie pas encore de release. Prends le code avec **Code → Download ZIP**
+sur [GitHub](https://github.com/ATX-AI-Dev/bip), décompresse-le dans un dossier permanent (par exemple
+`Documents\Rinel`, pas dans Téléchargements : les hooks pointent vers ce dossier), puis lance
+`installer.cmd`. (Les [releases du projet d'origine](https://github.com/CR0ZER/bip/releases/latest)
+contiennent l'ancien Bip, sans Rinel ni les ajouts de ce fork.)
 
 > Les exécutables ne sont pas signés : au premier lancement, Windows SmartScreen peut afficher
 > « Windows a protégé votre ordinateur ». Clique sur *Informations complémentaires* →
-> *Exécuter quand même*. L'empreinte SHA-256 du zip est publiée avec chaque release, et tu
-> peux toujours compiler toi-même.
+> *Exécuter quand même*. Les exécutables sont compilés sur ton poste par
+> `installer.cmd` : tu peux relire le code avant.
 
 **Depuis les sources** (compilé sur ton poste, sans rien installer) :
 
 ```bat
-git clone https://github.com/CR0ZER/bip.git
+git clone https://github.com/ATX-AI-Dev/bip.git
 cd bip
 installer.cmd
 ```
@@ -357,13 +361,17 @@ sous-agents) et ce que l'encoche montrerait ; `notch.log` recueille les erreurs 
   pour agents de code sur macOS (licence MIT). Rinel en reprend l'idée (un bloc noir qui se
   transforme, des réponses depuis l'encoche) ; le code, la mascotte et le design sont propres
   à ce projet.
-- **Mascotte et design** conçus avec Claude Design.
+- **Projet d'origine : [Bip](https://github.com/CR0ZER/bip) de CR0ZER** (MIT) : l'encoche, les hooks, le
+  journal d'audit, les règles suggérées et le robot Bip viennent de là. Ce dépôt en est un fork.
+- **Rinel**, la mascotte de ce fork (chevalier à plume et parchemin, d'après Hervé de Rinel, personnage
+  de *Kaamelott*), a été dessinée et animée avec Claude ; le kit est dans `design/rinel-mascotte`.
+- Kaamelott est une œuvre d'Alexandre Astier ; Rinel n'est ni affilié ni approuvé par ses ayants droit.
 - Projet indépendant, non affilié à Anthropic. « Claude » et « Claude Code » sont des marques
   d'Anthropic.
 
 ## Licence
 
-[MIT](LICENSE) © 2026 CR0ZER
+[MIT](LICENSE) © 2026 CR0ZER (projet d'origine), modifications © 2026 ATX-AI-Dev
 
 <br>
 
@@ -373,11 +381,14 @@ sous-agents) et ce que l'encoche montrerait ; `notch.log` recueille les erreurs 
 
 ## English
 
-[🇫🇷 Version française ↑](#bip) · **🇬🇧 English**
+[🇫🇷 Version française ↑](#rinel-ex-bip) · **🇬🇧 English**
 
 **The Claude Code notch for Windows.** One little knight per session, docked at the top of your
 screen: see at a glance who is working, who is done and who is waiting for you, and answer
 without switching windows. *The interface is in French.*
+
+> **Fork of [CR0ZER/bip](https://github.com/CR0ZER/bip)**, the original project ("Bip", MIT licence; all history up to v0.3.0 is CR0ZER's), maintained here by [ATX-AI-Dev](https://github.com/ATX-AI-Dev).
+> What this fork changes: the name and mascot (**Rinel**), **Claude Code questions shown in the notch and in Claude Desktop at the same time** (the first answer closes the other), **Antigravity** sessions, quick capture, morning summary, now-playing music, **calendars** (meetings, Join button) and more tests. Version by version: [CHANGELOG](CHANGELOG.md).
 
 ### Why
 
@@ -534,19 +545,20 @@ audit log.
 Requirements: Windows 10 or 11 (.NET Framework 4.x is already there) and Claude Code.
 Answering questions from the notch needs Claude Code 2.1.85 or later.
 
-**Download** (easiest): grab `Bip-vX.Y.Z.zip` from the
-[latest release](https://github.com/CR0ZER/bip/releases/latest), unzip it into a permanent
+**Download**: this fork has no release yet. Take the code with **Code → Download ZIP** on
+[GitHub](https://github.com/ATX-AI-Dev/bip) (the [original project's releases](https://github.com/CR0ZER/bip/releases/latest)
+contain the old Bip, without Rinel or this fork's additions), unzip it into a permanent
 folder (for instance `Documents\Rinel`, not Downloads: the hooks point to that folder), then run
 `installer.cmd`.
 
 > The executables are not signed: on first launch, Windows SmartScreen may say "Windows protected
-> your PC". Click *More info* → *Run anyway*. Each release ships the zip's SHA-256 checksum, and
-> you can always build it yourself.
+> your PC". Click *More info* → *Run anyway*. The executables are built on your PC by
+> `installer.cmd`: you can read the code first.
 
 **From source** (built on your machine, nothing to install):
 
 ```bat
-git clone https://github.com/CR0ZER/bip.git
+git clone https://github.com/ATX-AI-Dev/bip.git
 cd bip
 installer.cmd
 ```
@@ -637,10 +649,14 @@ would show; `notch.log` collects errors; `journal\` keeps 7 days of summaries.
 - **Inspired by [coucou](https://github.com/Louis-CFM/coucou)** by Louis-CFM, the companion notch
   for coding agents on macOS (MIT licence). Rinel borrows the idea (a black block that morphs,
   answering from the notch); the code, the mascot and the design are this project's own.
-- **Mascot and design** made with Claude Design.
+- **Original project: [Bip](https://github.com/CR0ZER/bip) by CR0ZER** (MIT): the notch, hooks, audit log,
+  suggested rules and the Bip robot come from there. This repository is a fork.
+- **Rinel**, this fork's mascot (a knight with a plume and a scroll, after Hervé de Rinel from the French
+  series *Kaamelott*), was drawn and animated with Claude; the kit lives in `design/rinel-mascotte`.
+- Kaamelott is a work by Alexandre Astier; Rinel is not affiliated with or endorsed by its rights holders.
 - Independent project, not affiliated with Anthropic. "Claude" and "Claude Code" are trademarks
   of Anthropic.
 
 ### Licence
 
-[MIT](LICENSE) © 2026 CR0ZER
+[MIT](LICENSE) © 2026 CR0ZER (original project), modifications © 2026 ATX-AI-Dev
